@@ -40,7 +40,7 @@ struct VertexOutput {
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
   var quad_pos = mat2x3f(render_params.right, render_params.up) * in.quad_pos;
-  var position = in.position + quad_pos * 0.01;
+  var position = in.position + quad_pos * 0.0091;
   var out : VertexOutput;
   out.position = render_params.modelViewProjectionMatrix * vec4f(position, 1.0);
   out.color = in.color;
@@ -69,10 +69,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 // Simulation Compute shader
 ////////////////////////////////////////////////////////////////////////////////
 struct SimulationParams {
-  deltaTime : f32,
-  brightnessFactor : f32,
-  seed : vec4f,
+  deltaTime: f32,
+  snapFrame: f32,
+  seed: vec4f,
+ // snapFrame: f32,
 }
+
 
 struct Particle {
   position : vec3f,
@@ -86,74 +88,189 @@ struct Particles {
 }
 
 // Hash function để sinh giá trị ngẫu nhiên (dùng trong noise)
-fn hash(p: vec3<f32>) -> f32 {
-    let h = dot(p, vec3<f32>(127.1, 311.7, 74.7));
-    return fract(sin(h) * 43758.5453123);
+fn mod289(x: vec4<f32>) -> vec4<f32> {
+    return x - floor(x * (1.0 / 289.0)) * 289.0;
 }
 
-// Lerp (linear interpolation)
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    return a + t * (b - a);
+fn mod289f(x: f32) -> f32 {
+    return x - floor(x * (1.0 / 289.0)) * 289.0;
 }
 
-// fade curve (ease curve) của Perlin noise
-fn fade(t: f32) -> f32 {
-    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+fn permute(x: vec4<f32>) -> vec4<f32> {
+    return mod289(((x * 34.0) + 1.0) * x);
 }
 
-// Hàm noise 3D đơn giản (classic Perlin noise)
-fn snoise(p: vec3<f32>) -> f32 {
-    let i = vec3<f32>(floor(p.x), floor(p.y), floor(p.z));
-    let f = vec3<f32>(fract(p.x), fract(p.y), fract(p.z));
-
-    // 8 điểm góc của cube
-    let a = hash(i);
-    let b = hash(i + vec3<f32>(1.0, 0.0, 0.0));
-    let c = hash(i + vec3<f32>(0.0, 1.0, 0.0));
-    let d = hash(i + vec3<f32>(1.0, 1.0, 0.0));
-    let e = hash(i + vec3<f32>(0.0, 0.0, 1.0));
-    let f1 = hash(i + vec3<f32>(1.0, 0.0, 1.0));
-    let g = hash(i + vec3<f32>(0.0, 1.0, 1.0));
-    let h = hash(i + vec3<f32>(1.0, 1.0, 1.0));
-
-    // fade curve
-    let u = vec3<f32>(fade(f.x), fade(f.y), fade(f.z));
-
-    // lerp từng trục
-    let lerp_x1 = lerp(a, b, u.x);
-    let lerp_x2 = lerp(c, d, u.x);
-    let lerp_x3 = lerp(e, f1, u.x);
-    let lerp_x4 = lerp(g, h, u.x);
-
-    let lerp_y1 = lerp(lerp_x1, lerp_x2, u.y);
-    let lerp_y2 = lerp(lerp_x3, lerp_x4, u.y);
-
-    let lerp_z = lerp(lerp_y1, lerp_y2, u.z);
-
-    return lerp_z * 2.0 - 1.0; // normalize output -1..1
+fn permutef(x: f32) -> f32 {
+    return mod289f(((x * 34.0) + 1.0) * x);
 }
 
-fn curlNoise(p: vec3<f32>) -> vec3<f32> {
-  let e = 0.1;
-  
-  let dx = vec3<f32>(e, 0.0, 0.0);
-  let dy = vec3<f32>(0.0, e, 0.0);
-  let dz = vec3<f32>(0.0, 0.0, e);
+fn taylorInvSqrt(r: vec4<f32>) -> vec4<f32> {
+    return vec4<f32>(1.79284291400159) - vec4<f32>(0.85373472095314) * r;
+}
 
-  // tính đạo hàm đạo hàm chéo (partial derivatives) theo hữu hạn
-  let dn_dy = (snoise(p + dy) - snoise(p - dy)) / (2.0 * e);
-  let dn_dz = (snoise(p + dz) - snoise(p - dz)) / (2.0 * e);
-  let curl_x = dn_dz - dn_dy;
+fn taylorInvSqrtf(r: f32) -> f32 {
+    return 1.79284291400159 - 0.85373472095314 * r;
+}
 
-  let dn_dz_2 = (snoise(p + dz) - snoise(p - dz)) / (2.0 * e);
-  let dn_dx = (snoise(p + dx) - snoise(p - dx)) / (2.0 * e);
-  let curl_y = dn_dx - dn_dz_2;
+fn lessThanZero(x: vec4<f32>) -> vec4<f32> {
+    return vec4<f32>(
+        select(0.0, 1.0, x.x < 0.0),
+        select(0.0, 1.0, x.y < 0.0),
+        select(0.0, 1.0, x.z < 0.0),
+        select(0.0, 1.0, x.w < 0.0)
+    );
+}
 
-  let dn_dx_2 = (snoise(p + dx) - snoise(p - dx)) / (2.0 * e);
-  let dn_dy_2 = (snoise(p + dy) - snoise(p - dy)) / (2.0 * e);
-  let curl_z = dn_dy_2 - dn_dx_2;
+fn grad4(j: f32, ip: vec4<f32>) -> vec4<f32> {
+    let ones = vec4<f32>(1.0, 1.0, 1.0, -1.0);
+    var p: vec4<f32>;
 
-  return vec3<f32>(curl_x, curl_y, curl_z);
+    let j3 = vec3<f32>(j);
+    var temp_xyz: vec3<f32> = floor(fract(j3 * ip.xyz) * 7.0) * ip.z - 1.0;
+    p = vec4<f32>(temp_xyz, p.w);
+
+    p.w = 1.5 - dot(abs(p.xyz), ones.xyz);
+
+    let s = lessThanZero(p);
+    var temp: vec4<f32> = s;
+
+   p = vec4<f32>(
+    p.xyz + (temp.xyz * 2.0 - vec3<f32>(1.0)) * vec3<f32>(temp.www),
+    p.w
+);
+
+    return p;
+}
+
+fn snoise4(v: vec4<f32>) -> vec4<f32> {
+    let C = vec4<f32>(0.138196601125011, 0.276393202250021, 0.414589803375032, -0.447213595499958);
+
+    let i = floor(v + dot(v, vec4<f32>(0.309016994374947451)));
+
+    let x0 = v - i + dot(i, vec4<f32>(C.x));
+
+    var i0 = vec4<f32>(0.0);
+
+    let isX = vec3<f32>(
+        select(0.0, 1.0, x0.y > x0.x),
+        select(0.0, 1.0, x0.z > x0.x),
+        select(0.0, 1.0, x0.w > x0.x)
+    );
+    let isYZ = vec3<f32>(
+        select(0.0, 1.0, x0.z > x0.y),
+        select(0.0, 1.0, x0.w > x0.y),
+        select(0.0, 1.0, x0.w > x0.z)
+    );
+
+    i0.x = isX.x + isX.y + isX.z;
+    i0.y = 1.0 - isX.x;
+    i0.z = 1.0 - isX.y;
+    i0.w = 1.0 - isX.z;
+
+    i0.y = i0.y + isYZ.x + isYZ.y;
+    i0.z = i0.z + isYZ.z;
+    i0.w = i0.w + (1.0 - isYZ.z);
+
+    let i3 = clamp(i0, vec4<f32>(0.0), vec4<f32>(1.0));
+    let i2 = clamp(i0 - vec4<f32>(1.0), vec4<f32>(0.0), vec4<f32>(1.0));
+    let i1 = clamp(i0 - vec4<f32>(2.0), vec4<f32>(0.0), vec4<f32>(1.0));
+
+    let x1 = x0 - i1 + vec4<f32>(C.x);
+    let x2 = x0 - i2 + vec4<f32>(C.y);
+    let x3 = x0 - i3 + vec4<f32>(C.z);
+    let x4 = x0 + vec4<f32>(C.w);
+
+    let ii = mod289(i);
+    let j0 = permutef(permutef(permutef(permutef(ii.w) + ii.z) + ii.y) + ii.x);
+
+    let j1 = vec4<f32>(
+        permutef(permutef(permutef(permutef(
+            ii.w + i1.w) + ii.z + i1.z) + ii.y + i1.y) + ii.x + i1.x),
+        permutef(permutef(permutef(permutef(
+            ii.w + i2.w) + ii.z + i2.z) + ii.y + i2.y) + ii.x + i2.x),
+        permutef(permutef(permutef(permutef(
+            ii.w + i3.w) + ii.z + i3.z) + ii.y + i3.y) + ii.x + i3.x),
+        permutef(permutef(permutef(permutef(
+            ii.w + 1.0) + ii.z + 1.0) + ii.y + 1.0) + ii.x + 1.0)
+    );
+
+    let ip = vec4<f32>(1.0 / 294.0, 1.0 / 49.0, 1.0 / 7.0, 0.0);
+
+    let p0 = grad4(j0, ip);
+    let p1 = grad4(j1.x, ip);
+    let p2 = grad4(j1.y, ip);
+    let p3 = grad4(j1.z, ip);
+    let p4 = grad4(j1.w, ip);
+
+    let norm = taylorInvSqrt(vec4<f32>(
+        dot(p0, p0),
+        dot(p1, p1),
+        dot(p2, p2),
+        dot(p3, p3)
+    ));
+    let norm4 = taylorInvSqrtf(dot(p4, p4));
+
+    let p0n = p0 * norm.x;
+    let p1n = p1 * norm.y;
+    let p2n = p2 * norm.z;
+    let p3n = p3 * norm.w;
+    let p4n = p4 * norm4;
+
+    let values0 = vec3<f32>(dot(p0n, x0), dot(p1n, x1), dot(p2n, x2));
+    let values1 = vec2<f32>(dot(p3n, x3), dot(p4n, x4));
+
+    let m0 = max(vec3<f32>(0.5) - vec3<f32>(dot(x0, x0), dot(x1, x1), dot(x2, x2)), vec3<f32>(0.0));
+    let m1 = max(vec2<f32>(0.5) - vec2<f32>(dot(x3, x3), dot(x4, x4)), vec2<f32>(0.0));
+
+    let temp0 = -6.0 * m0 * m0 * values0;
+    let temp1 = -6.0 * m1 * m1 * values1;
+
+    let mmm0 = m0 * m0 * m0;
+    let mmm1 = m1 * m1 * m1;
+
+    let dx = temp0.x * x0.x + temp0.y * x1.x + temp0.z * x2.x + temp1.x * x3.x + temp1.y * x4.x
+        + mmm0.x * p0n.x + mmm0.y * p1n.x + mmm0.z * p2n.x + mmm1.x * p3n.x + mmm1.y * p4n.x;
+
+    let dy = temp0.x * x0.y + temp0.y * x1.y + temp0.z * x2.y + temp1.x * x3.y + temp1.y * x4.y
+        + mmm0.x * p0n.y + mmm0.y * p1n.y + mmm0.z * p2n.y + mmm1.x * p3n.y + mmm1.y * p4n.y;
+
+    let dz = temp0.x * x0.z + temp0.y * x1.z + temp0.z * x2.z + temp1.x * x3.z + temp1.y * x4.z
+        + mmm0.x * p0n.z + mmm0.y * p1n.z + mmm0.z * p2n.z + mmm1.x * p3n.z + mmm1.y * p4n.z;
+
+    let dw = temp0.x * x0.w + temp0.y * x1.w + temp0.z * x2.w + temp1.x * x3.w + temp1.y * x4.w
+        + mmm0.x * p0n.w + mmm0.y * p1n.w + mmm0.z * p2n.w + mmm1.x * p3n.w + mmm1.y * p4n.w;
+
+    return 42.0 * vec4<f32>(dx, dy, dz, dw);
+}
+fn curl4(p: vec3<f32>, noiseTime: f32, persistence: f32) -> vec3<f32> {
+    var xNoisePotentialDerivatives: vec4<f32> = vec4<f32>(0.0);
+    var yNoisePotentialDerivatives: vec4<f32> = vec4<f32>(0.0);
+    var zNoisePotentialDerivatives: vec4<f32> = vec4<f32>(0.0);
+
+    for (var i: i32 = 0; i < 3; i = i + 1) {
+        let twoPowI: f32 = pow(2.0, f32(i));
+        let scale: f32 = 0.5 * twoPowI * pow(persistence, f32(i));
+
+        xNoisePotentialDerivatives = xNoisePotentialDerivatives + snoise4(vec4<f32>(p * twoPowI, noiseTime)) * scale;
+        yNoisePotentialDerivatives = yNoisePotentialDerivatives + snoise4(vec4<f32>((p + vec3<f32>(123.4, 129845.6, -1239.1)) * twoPowI, noiseTime)) * scale;
+        zNoisePotentialDerivatives = zNoisePotentialDerivatives + snoise4(vec4<f32>((p + vec3<f32>(-9519.0, 9051.0, -123.0)) * twoPowI, noiseTime)) * scale;
+    }
+
+    return vec3<f32>(
+        zNoisePotentialDerivatives.y - yNoisePotentialDerivatives.z,
+        xNoisePotentialDerivatives.z - zNoisePotentialDerivatives.x,
+        yNoisePotentialDerivatives.x - xNoisePotentialDerivatives.y
+    );
+}
+
+fn rotX(angle: f32) -> mat3x3<f32> {
+    let s = sin(angle);
+    let c = cos(angle);
+    return mat3x3<f32>(
+        vec3<f32>(1.0, 0.0, 0.0),
+        vec3<f32>(0.0, c, s),
+        vec3<f32>(0.0, -s, c)
+    );
 }
 
 @binding(0) @group(0) var<uniform> sim_params : SimulationParams;
@@ -168,50 +285,78 @@ fn simulate(@builtin(global_invocation_id) global_invocation_id : vec3u) {
 
   var particle = data.particles[idx];
 
-  // Apply gravity
-  //particle.velocity.x = particle.velocity.x - sim_params.deltaTime * 0.5;
-
-    let curl = curlNoise(particle.position * 1. + sim_params.deltaTime * .1);
-    particle.velocity += curl * .01;
-
-  // Basic velocity integration
   particle.position = particle.position + sim_params.deltaTime * particle.velocity;
+  // Apply gravity
+  let noiseCurl = curl4(particle.position * .018, sim_params.snapFrame, 0.5 +  (1.-particle.lifetime) * .21) * .1;
+  //let curlBeauti2 = curlNoise((particle.position + particle.velocity) * 1. );
+  particle.velocity += noiseCurl * 1.;
+  particle.velocity.z -= .3;
 
-  // Age each particle. Fade out before vanishing.
-  particle.lifetime = particle.lifetime - sim_params.deltaTime;
+  
+  particle.lifetime = particle.lifetime - 0.02;
+
+  
+  let speed = length(particle.velocity.xyz );
+  particle.color = vec4f(speed, speed, speed, 1.0);
+  particle.color = vec4f(.5,1.,.5, 1.0);
   particle.color.a = smoothstep(0.0, 0.9, particle.lifetime);
+  
+  if (particle.lifetime < 0. ) {
+      let textureWidth = 6000;
+      let particleIndex = i32(global_invocation_id.x);
 
-  // If the lifetime has gone negative, then the particle is dead and should be
-  // respawned.
-  if (particle.lifetime < 0.0) {
-    // Use the probability map to find where the particle should be spawned.
-    // Starting with the 1x1 mip level.
-    var coord : vec2i;
-    for (var level = u32(textureNumLevels(texture) - 1); level > 0; level--) {
-      // Load the probability value from the mip-level
-      // Generate a random number and using the probabilty values, pick the
-      // next texel in the next largest mip level:
-      //
-      // 0.0    probabilites.r    probabilites.g    probabilites.b   1.0
-      //  |              |              |              |              |
-      //  |   TOP-LEFT   |  TOP-RIGHT   | BOTTOM-LEFT  | BOTTOM_RIGHT |
-      //
-      let probabilites = textureLoad(texture, coord, level);
-      let value = vec4f(rand());
-      let mask = (value >= vec4f(0.0, probabilites.xyz)) & (value < probabilites);
-      coord = coord * 2;
-      coord.x = coord.x + select(0, 1, any(mask.yw)); // x  y
-      coord.y = coord.y + select(0, 1, any(mask.zw)); // z  w
-    }
-    let uv = vec2f(coord) / vec2f(textureDimensions(texture));
-    particle.position = vec3f((uv - 0.5) * 1.0 * vec2f(1.0, -1.0), 0.0);
-    particle.color = textureLoad(texture, coord, 0);
-    particle.velocity.x = 0.;
-    particle.velocity.y = 0.;
-    particle.velocity.z = 0.;
-    particle.lifetime = 0.5 + rand() * 3.0;
+      let frameIndex0 = i32(floor(sim_params.snapFrame));
+      let frameIndex1 = min(frameIndex0 + 1, 63 - 1); // giới hạn max frame
+
+      var mixedColor: vec4<f32>;
+
+      // Nếu particleIndex trong giới hạn texture width
+      if (particleIndex < textureWidth) {
+          let pos0 = vec2<i32>(particleIndex, frameIndex0);
+          let pos1 = vec2<i32>(particleIndex, frameIndex1);
+
+          let color0: vec4<f32> = textureLoad(texture, pos0, 0);
+          let color1: vec4<f32> = textureLoad(texture, pos1, 0);
+
+          let t: f32 = sim_params.snapFrame - floor(sim_params.snapFrame);
+
+          mixedColor = mix(color0, color1, t);
+      } else {
+          // random nội suy giữa 2 pixel kế tiếp trong texture width
+
+          // Tạo random float t dựa trên particleIndex
+          let randT = fract(sin(f32(particleIndex) * 12.9898) * 43758.5453);
+
+          // Tính index base trong texture
+          let baseIndex0 = particleIndex % textureWidth;
+          let baseIndex1 = min(baseIndex0 + 1, textureWidth - 1);
+
+          // Lấy 2 pixel ở frameIndex0 (hoặc frameIndex1 đều được)
+          let pos0 = vec2<i32>(baseIndex0, frameIndex0);
+          let pos1 = vec2<i32>(baseIndex1, frameIndex0);
+
+          let color0: vec4<f32> = textureLoad(texture, pos0, 0);
+          let color1: vec4<f32> = textureLoad(texture, pos1, 0);
+
+          mixedColor = mix(color0, color1, randT);
+      }
+
+      // Xoay vector nếu cần
+      let rotated_xyz = rotX(-3.141592653589793 / 2.0) * mixedColor.xyz;
+
+      particle.position = vec3<f32>(rotated_xyz);
+
+   // particle.position = vec3f( rand() *  2.0 - 1., rand() *  2.0 - 1.,rand() *  2.0 - 1.) * .09;
+    
+    //particle.velocity = vec3f( rand() *  2.0 - 1., rand() *  2.0 - 1., rand() *  2.0 - 1.);
+    particle.velocity = vec3f(0.,0.,0.);
+    particle.lifetime = 0.5 + rand() * 5.0;
   }
-
+ 
+  var bound = 1.;
+  if(particle.position.x > bound || particle.position.x < -bound || particle.position.y > bound || particle.position.y < -bound || particle.position.z > bound || particle.position.z < -bound) {
+   // particle.velocity = vec3f(0.,0.,0.);
+  }
   // Store the new particle value
   data.particles[idx] = particle;
 }

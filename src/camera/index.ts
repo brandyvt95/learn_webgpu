@@ -1,48 +1,39 @@
-import type { Camera } from './config';
-import { mat4 } from 'wgpu-matrix';
+import { GUI } from 'dat.gui';
+import { mat4, vec3 } from 'wgpu-matrix';
+import { ArcballCamera, WASDCamera } from './config';
+import { createInputHandler } from '../intractive';
+export function initCamera(window: any, canvas: any) {
 
-export function initCamera(device: GPUDevice) {
-  const cameraBuffer = device.createBuffer({
-    size: 64,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  const initialCameraPosition = vec3.create(0, 0, 5);
+  const cameras = {
+    arcball: new ArcballCamera({ position: initialCameraPosition }),
+    WASD: new WASDCamera({ position: initialCameraPosition }),
+  };
+  const inputHandler = createInputHandler(window, canvas);
+
+  const aspect = canvas.width / canvas.height;
+
+  const params: { type: 'arcball' | 'WASD' } = {
+    type: 'arcball',
+  };
+  let oldCameraType = params.type;
+  const gui = new GUI();
+  gui.add(params, 'type', ['arcball', 'WASD']).onChange(() => {
+    // Copy the camera matrix from old to new
+    const newCameraType = params.type;
+    cameras[newCameraType].matrix = cameras[oldCameraType].matrix;
+    oldCameraType = newCameraType;
   });
 
-  const cameraBindGroupLayout = device.createBindGroupLayout({
-    entries: [{
-      binding: 0,
-      visibility: GPUShaderStage.VERTEX,
-      buffer: { type: 'uniform' },
-    }],
-  });
-
-  const pipelineLayout = device.createPipelineLayout({
-    bindGroupLayouts: [cameraBindGroupLayout],
-  });
-
-  function createBindGroup() {
-    return device.createBindGroup({
-      layout: cameraBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: cameraBuffer },
-        },
-      ],
-    });
+  const projectionMatrix = mat4.perspective((2 * Math.PI) / 4, aspect, .1, 100.0);
+  const modelViewProjectionMatrix = mat4.create();
+  function getModelViewProjectionMatrix(deltaTime: number) {
+    const camera = cameras[params.type];
+    const viewMatrix = camera.update(deltaTime, inputHandler());
+    mat4.multiply(projectionMatrix, viewMatrix, modelViewProjectionMatrix);
+    return { modelViewProjectionMatrix, viewMatrix };
   }
-
-  function updateCamera(camera: Camera) {
-    // Tính viewProjection matrix: projection * view
-    const viewProj = mat4.multiply(camera.projectionMatrix, camera.viewMatrix);
-    // Ghi matrix vào buffer GPU (lưu ý là mat4 ở wgpu-matrix có .buffer chứa ArrayBuffer)
-    device.queue.writeBuffer(cameraBuffer, 0, viewProj.buffer, viewProj.byteOffset, viewProj.byteLength);
-  }
-
   return {
-    cameraBuffer,
-    cameraBindGroupLayout,
-    pipelineLayout,
-    createBindGroup,
-    updateCamera,
+    getModelViewProjectionMatrix
   };
 }
