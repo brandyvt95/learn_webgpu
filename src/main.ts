@@ -20,7 +20,7 @@ const CONFIG_VAT = {
 }
 
 async function main() {
-  const numParticles = 200000;
+  const numParticles = 345000;
   const particlePositionOffset = 0;
   const particleColorOffset = 4 * 4;
   const particleInstanceByteSize =
@@ -325,7 +325,7 @@ async function main() {
   let coutnFrame = 0
   function frame() {
     const time = performance.now() / 1000;
-    coutnFrame += simulationParams.deltaTime * 10
+    coutnFrame += simulationParams.deltaTime * 40
     if (coutnFrame > CONFIG_VAT.height) {
       coutnFrame = 0
     }
