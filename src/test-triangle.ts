@@ -4,7 +4,8 @@ import fragWGSL from './shaders/red.frag.wgsl';
 
 export default function init(
   context: GPUCanvasContext,
-  device: GPUDevice
+  device: GPUDevice,
+  PARAMS:any
 ): void {
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
   context.configure({
@@ -38,6 +39,7 @@ export default function init(
   });
 
   function frame() {
+    
     const commandEncoder = device.createCommandEncoder();
     const textureView = context.getCurrentTexture().createView();
 
@@ -45,7 +47,7 @@ export default function init(
       colorAttachments: [
         {
           view: textureView,
-          clearValue: { r: 0.0, g: 0.0, b: 0.3, a: 1.0 },
+          clearValue: { r: PARAMS.test, g: 1. - PARAMS.test, b: 0.3, a: 1.0 },
           loadOp: 'clear',
           storeOp: 'store',
         },

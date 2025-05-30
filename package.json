@@ -15,6 +15,7 @@
     "vite-raw-plugin": "^1.0.1"
   },
   "dependencies": {
+    "dat.gui": "^0.7.9",
     "tweakpane": "^3.1.8",
     "wgpu-matrix": "^3.2.0"
   }
