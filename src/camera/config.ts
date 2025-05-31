@@ -1,7 +1,7 @@
 // Note: The code in this file does not use the 'dst' output parameter of functions in the
 // 'wgpu-matrix' library, so produces many temporary vectors and matrices.
 // This is intentional, as this sample prefers readability over performance.
-import { Mat4, Vec3, Vec4, mat4, vec3 } from 'wgpu-matrix';
+import { Mat4, Vec3, Vec4, mat4, vec3,quat} from 'wgpu-matrix';
 import Input from '../intractive';
 
 // Common interface for camera implementations
@@ -190,10 +190,8 @@ export class WASDCamera extends CameraBase implements Camera {
     );
 
     // Integrate velocity to calculate new position
-    this.position = vec3.addScaled(position, this.velocity, deltaTime);
-
-    // Invert the camera matrix to build the view matrix
-    this.view = mat4.invert(this.matrix);
+   this.position = vec3.addScaled(position, this.velocity, deltaTime);
+   this.view = mat4.invert(this.matrix);
     return this.view;
   }
 
@@ -225,7 +223,7 @@ export class ArcballCamera extends CameraBase implements Camera {
   }
 
   // Speed multiplier for camera rotation
-  rotationSpeed = 1;
+  rotationSpeed = .1;
 
   // Speed multiplier for camera zoom
   zoomSpeed = 0.1;

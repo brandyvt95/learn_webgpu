@@ -110,3 +110,12 @@ const fail = (() => {
     throw new Error(message);
   };
 })();
+
+
+export function configureContext({ context, device, presentationFormat, toneMapping }: any) {
+  context.configure({
+    device,
+    format: presentationFormat,
+    toneMapping: { mode: toneMapping },
+  });
+}

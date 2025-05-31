@@ -36,7 +36,7 @@ export const createTextureFromPNGWithoutMipmaps = async (device,url) => {
 
 export async function cropBinToWebGPUTexture(
   device: GPUDevice,
-  binBuffer: ArrayBuffer,
+  url: string,
   width: number,
   height: number,
   columnGroups: number[][],
@@ -47,6 +47,8 @@ export async function cropBinToWebGPUTexture(
   pixelRanges: [number, number][]
   uvRanges: [number, number][]
 }> {
+  const response2 = await fetch(url)
+  const binBuffer = await response2.arrayBuffer() as ArrayBuffer
   const totalPixels = width * height
   const data = new Uint16Array(binBuffer) // giả sử là Uint8 data, chỉnh lại nếu khác
 

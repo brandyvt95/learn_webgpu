@@ -42,8 +42,13 @@ struct RenderParams {
   right : vec3f,
   up : vec3f
 }
+struct CameraBGC {
+  modelViewProjectionMatrix : mat4x4f,
+  right : vec3f,
+  up : vec3f
+}
 @binding(0) @group(0) var<uniform> render_params : RenderParams;
-
+//@binding(1) @group(0) var<uniform> camera_bgc : CameraBGC;
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
   var output: VertexOutput;
@@ -57,7 +62,8 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 
 // Xoay -90 độ (mặt đứng → nằm ngang)
 let rotated = rotateX(input.position, -3.15708); // -PI/2
-  output.Position =  render_params.modelViewProjectionMatrix *  vec4<f32>(rotated * 5., 1.0);
+let offset = vec3<f32>(0.0, -1.0, 0.0); 
+  output.Position =  render_params.modelViewProjectionMatrix *  vec4<f32>(rotated * 5. + offset, 1.0);
   output.vUV = input.uv;
   output.vHeight = height;
 

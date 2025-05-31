@@ -34,6 +34,7 @@ export function initCamera(window: any, canvas: any) {
     return { modelViewProjectionMatrix, viewMatrix };
   }
   return {
-    getModelViewProjectionMatrix
+    getModelViewProjectionMatrix,
+    camera:cameras[params.type]
   };
 }

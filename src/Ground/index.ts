@@ -1,20 +1,31 @@
-import groundWGSL from './shaders/ground.wgsl'; // cách import raw text (tuỳ config bundler)
+import groundWGSL from '../shaders/ground.wgsl'; // cách import raw text (tuỳ config bundler)
 
-export class Ground {
+interface GroundOptions {
+  device: GPUDevice;
+  presentationFormat: GPUTextureFormat;
+  cameraBuffer:any
+}
+
+export class InitGround {
     device: GPUDevice;
     pipeline: GPURenderPipeline;
     vertexBuffer: GPUBuffer;
     indexBuffer: GPUBuffer;
     indexCount: number;
-    uniformBindGroup_GROUND:any;
-    uniformBuffer_GROUND:any;
-    
-    constructor(device: GPUDevice) {
+    uniformBindGroup_GROUND: any;
+    uniformBuffer_GROUND: any;
+    presentationFormat:any
+    cameraBuffer:any
+    constructor({device,presentationFormat,cameraBuffer}: GroundOptions) {
         this.device = device;
-        this.createPipeline();
-        this.createMesh();
+        this.cameraBuffer = cameraBuffer
         this.uniformBindGroup_GROUND = null;
         this.uniformBuffer_GROUND = null
+        this.presentationFormat = presentationFormat
+        this.createPipeline();
+        this.creatUniform()
+        this.createMesh();
+
     }
 
     createPipeline() {
@@ -36,11 +47,12 @@ export class Ground {
             fragment: {
                 module: this.device.createShaderModule({ code: groundWGSL }),
                 entryPoint: 'fs_main',
-                targets: [{ format: 'rgba16float' }],
+                targets: [{ format: this.presentationFormat }],
             },
             primitive: {
                 topology: 'triangle-list',
-                cullMode: 'back',
+                cullMode: 'none',
+                
             },
             depthStencil: {
                 depthWriteEnabled: true,
@@ -57,20 +69,21 @@ export class Ground {
             3 * 4 + // up : vec3f
             4 + // padding
             0;
-         this.uniformBuffer_GROUND = this.device.createBuffer({
+        this.uniformBuffer_GROUND = this.device.createBuffer({
             size: uniformBufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-         this.uniformBindGroup_GROUND = this.device.createBindGroup({
+        this.uniformBindGroup_GROUND = this.device.createBindGroup({
             layout: this.pipeline.getBindGroupLayout(0),
             entries: [
-            {
-                binding: 0,
-                resource: {
-                buffer: this.uniformBuffer_GROUND,
-                },
-            },
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.uniformBuffer_GROUND,
+                    },
+                }
+                
             ],
         });
     }
@@ -104,11 +117,12 @@ export class Ground {
         this.indexBuffer.unmap();
     }
 
-    draw(passEncoder: GPURenderPassEncoder) {
-        passEncoder.setPipeline(this.pipeline);
-        passEncoder.setBindGroup(0, this.uniformBindGroup_GROUND);
-        passEncoder.setVertexBuffer(0, this.vertexBuffer);
-        passEncoder.setIndexBuffer(this.indexBuffer, 'uint16');
-        passEncoder.drawIndexed(this.indexCount);
+    draw({renderPass,uniform}:{renderPass: GPURenderPassEncoder,uniform?:GPUBindGroup[]}) {
+        renderPass.setPipeline(this.pipeline);
+        renderPass.setBindGroup(0, this.uniformBindGroup_GROUND);
+     
+        renderPass.setVertexBuffer(0, this.vertexBuffer);
+        renderPass.setIndexBuffer(this.indexBuffer, 'uint16');
+        renderPass.drawIndexed(this.indexCount);
     }
 }
