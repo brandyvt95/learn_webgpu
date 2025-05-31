@@ -15,78 +15,6 @@ fn rand() -> f32 {
   return rand_seed.y;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Vertex shader
-////////////////////////////////////////////////////////////////////////////////
-struct RenderParams {
-  modelViewProjectionMatrix : mat4x4f,
-  right : vec3f,
-  up : vec3f
-}
-@binding(0) @group(0) var<uniform> render_params : RenderParams;
-
-struct VertexInput {
-  @location(0) position : vec3f,
-  @location(1) color : vec4f,
-  @location(2) quad_pos : vec2f, // -1..+1
-}
-
-struct VertexOutput {
-  @builtin(position) position : vec4f,
-  @location(0) color : vec4f,
-  @location(1) quad_pos : vec2f, // -1..+1
-}
-
-@vertex
-fn vs_main(in : VertexInput) -> VertexOutput {
-  var quad_pos = mat2x3f(render_params.right, render_params.up) * in.quad_pos;
-  var position = in.position + quad_pos * 0.0091;
-  var out : VertexOutput;
-  out.position = render_params.modelViewProjectionMatrix * vec4f(position, 1.0);
-  out.color = in.color;
-  out.quad_pos = in.quad_pos;
-  return out;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Fragment shader
-////////////////////////////////////////////////////////////////////////////////
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-  var dist = length(in.quad_pos);
-  if (dist > 1.0) {
-    // Trả về trong suốt -> "discard"
-    return vec4f(0.0, 0.0, 0.0, 0.0);
-  }
-  var color = in.color;
-  // Áp dụng alpha mask theo hình tròn mềm (optional)
-  //color.a = color.a * (1.0 - dist);
-  return color;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Simulation Compute shader
-////////////////////////////////////////////////////////////////////////////////
-struct SimulationParams {
-  deltaTime: f32,
-  snapFrame: f32,
-  seed: vec4f,
- // snapFrame: f32,
-}
-
-
-struct Particle {
-  position : vec3f,
-  lifetime : f32,
-  color    : vec4f,
-  velocity : vec3f,
-}
-
-struct Particles {
-  particles : array<Particle>,
-}
-
 // Hash function để sinh giá trị ngẫu nhiên (dùng trong noise)
 fn mod289(x: vec4<f32>) -> vec4<f32> {
     return x - floor(x * (1.0 / 289.0)) * 289.0;
@@ -272,6 +200,88 @@ fn rotX(angle: f32) -> mat3x3<f32> {
         vec3<f32>(0.0, -s, c)
     );
 }
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+
+struct PointUniforms {
+  pointSize : f32,     
+  radFade:f32,   
+  // padding 12 bytes (4f) if empty
+  pointColor: vec3<f32>,
+}
+struct CameraUniforms {
+  modelViewProjectionMatrix : mat4x4f,
+  right : vec3f,
+  up : vec3f
+}
+
+struct VertexInput {
+  @location(0) position : vec3f,
+  @location(1) color : vec4f,
+  @location(2) quad_pos : vec2f, // -1..+1
+  @location(3) extra : vec4f, 
+}
+
+struct VertexOutput {
+  @builtin(position) position : vec4f,
+  @location(0) color : vec4f,
+  @location(1) quad_pos : vec2f, // -1..+1
+  @location(2) extra : vec4f, 
+}
+
+@group(0) @binding(0) var<uniform> point_uniforms : PointUniforms;
+@group(1) @binding(0) var<uniform> camera_uniforms: CameraUniforms;
+
+@vertex
+fn vs_main(in : VertexInput) -> VertexOutput {
+  var quad_pos = mat2x3f(camera_uniforms.right, camera_uniforms.up) * in.quad_pos;
+  var position = in.position + quad_pos * 0.0091 * point_uniforms.pointSize;
+  var out : VertexOutput;
+  out.position = camera_uniforms.modelViewProjectionMatrix * vec4f(position, 1.0);
+  //out.color = vec4f(point_uniforms.pointColor.xyz,1.);
+out.color = in.color * vec4f(point_uniforms.pointColor.xyz,1.);
+  out.quad_pos = in.quad_pos;
+  out.extra = vec4f(point_uniforms.radFade,1.,1.,1.);
+  return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+    var dist = length(in.quad_pos);
+     if (dist > 1.0) {
+        return vec4f(0.0, 0.0, 0.0, 0.0);
+    }
+    //var alpha = smoothstep(in.extra.x, in.extra.x + .1, dist);
+    var color = in.color;
+    //color.a = color.a * (1.0 - dist);
+    return color;
+
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Simulation Compute shader
+////////////////////////////////////////////////////////////////////////////////
+struct SimulationParams {
+  deltaTime: f32,
+  snapFrame: f32,
+  seed: vec4f,
+ // snapFrame: f32,
+}
+
+
+struct Particle {
+  position : vec3f,
+  lifetime : f32,
+  color    : vec4f,
+  velocity : vec3f,
+}
+
+struct Particles {
+  particles : array<Particle>,
+}
+
 
 @binding(0) @group(0) var<uniform> sim_params : SimulationParams;
 @binding(1) @group(0) var<storage, read_write> data : Particles;
@@ -287,21 +297,20 @@ fn simulate(@builtin(global_invocation_id) global_invocation_id : vec3u) {
 
   particle.position = particle.position + sim_params.deltaTime * particle.velocity;
   // Apply gravity
-  let noiseCurl = curl4(particle.position * .018, sim_params.snapFrame, 0.5 +  (1.-particle.lifetime) * .21) * .1;
+  let noiseCurl = curl4(particle.position * .18, sim_params.snapFrame, 0.5 +  (1.-particle.lifetime) * .21) * .1;
   //let curlBeauti2 = curlNoise((particle.position + particle.velocity) * 1. );
   particle.velocity += noiseCurl * 1.;
-  particle.velocity.z -= .3;
+  particle.velocity.z -= .1;
+
+   particle.lifetime = particle.lifetime - 0.02;
 
   
-  particle.lifetime = particle.lifetime - 0.02;
-
-  
-  let speed = length(particle.velocity.xyz );
+  let speed = length(particle.velocity.xyz  * 10. );
   particle.color = vec4f(speed, speed, speed, 1.0);
-  particle.color = vec4f(.5,1.,.5, 1.0);
+  //particle.color = vec4f(.5,1.,.5, 1.0);
   particle.color.a = smoothstep(0.0, 0.9, particle.lifetime);
   
-  if (particle.lifetime < 0. ) {
+  if (particle.lifetime < 0.2) {
       let textureWidth = 6000;
       let particleIndex = i32(global_invocation_id.x);
 

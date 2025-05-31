@@ -2,20 +2,11 @@ import { Mat4, mat4, quat, vec3 } from 'wgpu-matrix';
 import { GUI } from 'dat.gui';
 import gltfWGSL from './shaders/common/gltf.wgsl';
 import gridWGSL from './shaders/common/grid.wgsl';
-import particleWGSL from './shaders/particle.wgsl';
-import probabilityMapWGSL from './shaders/probabilityMap.wgsl';
 import { configureContext, quitIfWebGPUNotAvailable } from './util';
-import { createInputHandler } from './intractive';
-import { initCamera } from './camera/index';
-import { createTextureFromPNGWithoutMipmaps, cropBinToWebGPUTexture } from './loadTexture';
 import {
   createSkinnedGridBuffers,
   createSkinnedGridRenderPipeline,
 } from './utils/gridUtils'
-import DATA_DETAIL_VAT from '../img/fast_run.json'
-import { InitGround } from './Ground';
-import { SimUBO } from './SimUBO';
-import { InitPoint } from './Point';
 import { convertGLBToJSONAndBinary, GLTFSkin } from './utils/glbUtils';
 import { createBindGroupCluster } from './bitonicSort/utils'
 
@@ -37,69 +28,6 @@ enum SkinMode {
   ON,
   OFF,
 }
-
-/*
-// Copied from toji/gl-matrix
-const getRotation = (mat: Mat4): Quat => {
-  // Initialize our output quaternion
-  const out = [0, 0, 0, 0];
-  // Extract the scaling factor from the final matrix transformation
-  // to normalize our rotation;
-  const scaling = mat4.getScaling(mat);
-  const is1 = 1 / scaling[0];
-  const is2 = 1 / scaling[1];
-  const is3 = 1 / scaling[2];
-
-  // Scale the matrix elements by the scaling factors
-  const sm11 = mat[0] * is1;
-  const sm12 = mat[1] * is2;
-  const sm13 = mat[2] * is3;
-  const sm21 = mat[4] * is1;
-  const sm22 = mat[5] * is2;
-  const sm23 = mat[6] * is3;
-  const sm31 = mat[8] * is1;
-  const sm32 = mat[9] * is2;
-  const sm33 = mat[10] * is3;
-
-  // The trace of a square matrix is the sum of its diagonal entries
-  // While the matrix trace has many interesting mathematical properties,
-  // the primary purpose of the trace is to assess the characteristics of the rotation.
-  const trace = sm11 + sm22 + sm33;
-  let S = 0;
-
-  // If all matrix elements contribute equally to the rotation.
-  if (trace > 0) {
-    S = Math.sqrt(trace + 1.0) * 2;
-    out[3] = 0.25 * S;
-    out[0] = (sm23 - sm32) / S;
-    out[1] = (sm31 - sm13) / S;
-    out[2] = (sm12 - sm21) / S;
-    // If the rotation is primarily around the x-axis
-  } else if (sm11 > sm22 && sm11 > sm33) {
-    S = Math.sqrt(1.0 + sm11 - sm22 - sm33) * 2;
-    out[3] = (sm23 - sm32) / S;
-    out[0] = 0.25 * S;
-    out[1] = (sm12 + sm21) / S;
-    out[2] = (sm31 + sm13) / S;
-    // If rotation is primarily around the y-axis
-  } else if (sm22 > sm33) {
-    S = Math.sqrt(1.0 + sm22 - sm11 - sm33) * 2;
-    out[3] = (sm31 - sm13) / S;
-    out[0] = (sm12 + sm21) / S;
-    out[1] = 0.25 * S;
-    out[2] = (sm23 + sm32) / S;
-    // If the rotation is primarily around the z-axis
-  } else {
-    S = Math.sqrt(1.0 + sm33 - sm11 - sm22) * 2;
-    out[3] = (sm12 - sm21) / S;
-    out[0] = (sm31 + sm13) / S;
-    out[1] = (sm23 + sm32) / S;
-    out[2] = 0.25 * S;
-  }
-
-  return out;
-};
-*/
 
 //Normal setup
 const canvas = document.querySelector('canvas') as HTMLCanvasElement;
@@ -174,11 +102,11 @@ gui.add(settings, 'skinMode', ['ON', 'OFF']).onChange(() => {
     if (settings.skinMode === 'OFF') {
       settings.cameraX = 0;
       settings.cameraY = 0;
-      settings.cameraZ = -11;
+      settings.cameraZ = -22;
     } else {
       settings.cameraX = 0;
       settings.cameraY = -5.1;
-      settings.cameraZ = -14.6;
+      settings.cameraZ = -22.6;
     }
   }
   device.queue.writeBuffer(
@@ -242,7 +170,7 @@ const nodeUniformsBindGroupLayout = device.createBindGroupLayout({
 });
 
 // Fetch whale resources from the glb file
-const whaleScene = await fetch('/src/assets/model/whale.glb')
+const whaleScene = await fetch('/src/assets/model/dragon.glb')
   .then((res) => res.arrayBuffer())
   .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
 
@@ -266,7 +194,7 @@ whaleScene.meshes[0].buildRenderPipeline(
 );
 
 // Create skinned grid resources
-const skinnedGridVertexBuffers = createSkinnedGridBuffers(device);
+
 // Buffer for our uniforms, joints, and inverse bind matrices
 const skinnedGridUniformBufferUsage: GPUBufferDescriptor = {
   // 5 4x4 matrices, one for each bone
@@ -278,31 +206,6 @@ const skinnedGridJointUniformBuffer = device.createBuffer(
 );
 const skinnedGridInverseBindUniformBuffer = device.createBuffer(
   skinnedGridUniformBufferUsage
-);
-const skinnedGridBoneBGCluster = createBindGroupCluster(
-  [0, 1],
-  [GPUShaderStage.VERTEX, GPUShaderStage.VERTEX],
-  ['buffer', 'buffer'],
-  [{ type: 'read-only-storage' }, { type: 'read-only-storage' }],
-  [
-    [
-      { buffer: skinnedGridJointUniformBuffer },
-      { buffer: skinnedGridInverseBindUniformBuffer },
-    ],
-  ],
-  'SkinnedGridJointUniforms',
-  device
-);
-const skinnedGridPipeline = createSkinnedGridRenderPipeline(
-  device,
-  presentationFormat,
-  gridWGSL,
-  gridWGSL,
-  [
-    cameraBGCluster.bindGroupLayout,
-    generalUniformsBGCLuster.bindGroupLayout,
-    skinnedGridBoneBGCluster.bindGroupLayout,
-  ]
 );
 
 // Global Calc
@@ -378,18 +281,7 @@ const gltfRenderPassDescriptor: GPURenderPassDescriptor = {
   },
 };
 
-// Pass descriptor for grid with no depth testing
-const skinnedGridRenderPassDescriptor: GPURenderPassDescriptor = {
-  colorAttachments: [
-    {
-      view: undefined, // Assigned later
 
-      clearValue: [0.3, 0.3, 0.3, 1.0],
-      loadOp: 'clear',
-      storeOp: 'store',
-    },
-  ],
-};
 
 const animSkinnedGrid = (boneTransforms: Mat4[], angle: number) => {
   const m = mat4.identity();
@@ -519,10 +411,6 @@ function frame() {
     .getCurrentTexture()
     .createView();
 
-  skinnedGridRenderPassDescriptor.colorAttachments[0].view = context
-    .getCurrentTexture()
-    .createView();
-
   // Update node matrixes
   for (const scene of whaleScene.scenes) {
     scene.root.updateWorldMatrix(device);
@@ -544,24 +432,6 @@ function frame() {
         generalUniformsBGCLuster.bindGroups[0],
       ]);
     }
-    passEncoder.end();
-  } else {
-    // Our skinned grid isn't checking for depth, so we pass it
-    // a separate render descriptor that does not take in a depth texture
-    const passEncoder = commandEncoder.beginRenderPass(
-      skinnedGridRenderPassDescriptor
-    );
-    passEncoder.setPipeline(skinnedGridPipeline);
-    passEncoder.setBindGroup(0, cameraBGCluster.bindGroups[0]);
-    passEncoder.setBindGroup(1, generalUniformsBGCLuster.bindGroups[0]);
-    passEncoder.setBindGroup(2, skinnedGridBoneBGCluster.bindGroups[0]);
-    // Pass in vertex and index buffers generated from our static skinned grid
-    // data at ./gridData.ts
-    passEncoder.setVertexBuffer(0, skinnedGridVertexBuffers.positions);
-    passEncoder.setVertexBuffer(1, skinnedGridVertexBuffers.joints);
-    passEncoder.setVertexBuffer(2, skinnedGridVertexBuffers.weights);
-    passEncoder.setIndexBuffer(skinnedGridVertexBuffers.indices, 'uint16');
-    passEncoder.drawIndexed(gridIndices.length, 1);
     passEncoder.end();
   }
 

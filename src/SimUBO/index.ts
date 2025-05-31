@@ -43,7 +43,7 @@ export class SimUBO {
 
     createGUI() {
         const gui = new GUI();
-        gui.width = 325;
+        gui.width = 100;
         gui.add(this.SIM_UBO_PARAMS, 'simulate');
         gui.add(this.SIM_UBO_PARAMS, 'deltaTime');
     }

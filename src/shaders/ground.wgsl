@@ -37,35 +37,28 @@ fn rotateX(p: vec3<f32>, angle: f32) -> vec3<f32> {
     s * p.y + c * p.z
   );
 }
-struct RenderParams {
+struct ObjectUniforms {
+  x : f32,
+  y : f32,
+  z : f32,
+  w : f32
+}
+struct CameraUniforms {
   modelViewProjectionMatrix : mat4x4f,
   right : vec3f,
   up : vec3f
 }
-struct CameraBGC {
-  modelViewProjectionMatrix : mat4x4f,
-  right : vec3f,
-  up : vec3f
-}
-@binding(0) @group(0) var<uniform> render_params : RenderParams;
-//@binding(1) @group(0) var<uniform> camera_bgc : CameraBGC;
+@group(0) @binding(0) var<uniform> obj_uniforms : ObjectUniforms;
+@group(1) @binding(0) var<uniform> camera_uniforms: CameraUniforms;
+
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
   var output: VertexOutput;
-
-  // Tính height từ noise theo uv hoặc position.xy
-  let height = noise(input.uv * 1.0) * 2.0; // scale và độ cao displacement
-
-  // Dịch vertex lên theo trục y (height)
-  let displacedPos = vec3<f32>(input.position.x, height, input.position.z);
-
-
-// Xoay -90 độ (mặt đứng → nằm ngang)
-let rotated = rotateX(input.position, -3.15708); // -PI/2
-let offset = vec3<f32>(0.0, -1.0, 0.0); 
-  output.Position =  render_params.modelViewProjectionMatrix *  vec4<f32>(rotated * 5. + offset, 1.0);
+  let rotated = rotateX(input.position, -3.15708);
+  let offset = vec3<f32>(0.0, obj_uniforms.y, 0.0); 
+  output.Position =  camera_uniforms.modelViewProjectionMatrix *  vec4<f32>(rotated * 5. + offset, 1.0);
   output.vUV = input.uv;
-  output.vHeight = height;
+  output.vHeight = 1.;
 
   return output;
 }

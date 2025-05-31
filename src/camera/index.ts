@@ -27,6 +27,7 @@ export function initCamera(window: any, canvas: any) {
 
   const projectionMatrix = mat4.perspective((2 * Math.PI) / 4, aspect, .1, 100.0);
   const modelViewProjectionMatrix = mat4.create();
+  const modelMatrix = mat4.create(); //
   function getModelViewProjectionMatrix(deltaTime: number) {
     const camera = cameras[params.type];
     const viewMatrix = camera.update(deltaTime, inputHandler());

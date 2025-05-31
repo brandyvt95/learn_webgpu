@@ -1,10 +1,11 @@
 
 import particleWGSL from '../shaders/particle.wgsl';
+import { GUI } from 'dat.gui';
 interface PointOptions {
-  device: GPUDevice;
-  presentationFormat: GPUTextureFormat;
-  POINT_BUFFER:any;
-  CONFIG_POINT_UBO:any;
+    device: GPUDevice;
+    presentationFormat: GPUTextureFormat;
+    POINT_BUFFER: any;
+    CONFIG_POINT_UBO: any;
 }
 
 export class InitPoint {
@@ -13,41 +14,73 @@ export class InitPoint {
     vertexBuffer: GPUBuffer;
     indexBuffer: GPUBuffer;
     indexCount: number;
-    uniformBindGroup_GROUND: any;
-    uniformBuffer_GROUND: any;
 
     numParticles: any;
     particlePositionOffset: any;
     particleColorOffset: any;
+    particleExtraOffset:any
     particleInstanceByteSize: any
 
-    uniformBuffer_PARTICLE: any;
-    uniformBindGroup_PARTICLE: any;
-    CONFIG_POINT_UBO:any;
+    uniformBuffer: any;
+    uniformBindGroup: any;
+    CONFIG_POINT_UBO: any;
     quadVertexBuffer: any
     particlesBuffer: any
-    presentationFormat:any
-    constructor({device,POINT_BUFFER,CONFIG_POINT_UBO,presentationFormat}:PointOptions) {
+    presentationFormat: any
+    gui: any
+    constructor({ device, POINT_BUFFER, CONFIG_POINT_UBO, presentationFormat }: PointOptions) {
         this.device = device;
         this.particlesBuffer = POINT_BUFFER
         this.CONFIG_POINT_UBO = CONFIG_POINT_UBO
         this.numParticles = this.CONFIG_POINT_UBO.numParticles
         this.particlePositionOffset = this.CONFIG_POINT_UBO.particlePositionOffset
         this.particleColorOffset = this.CONFIG_POINT_UBO.particleColorOffset
+ this.particleExtraOffset = this.CONFIG_POINT_UBO.particleExtraOffset
+        
         this.particleInstanceByteSize = this.CONFIG_POINT_UBO.particleInstanceByteSize
         this.presentationFormat = presentationFormat
 
-
-       
+        this.gui = {
+            pointSize: .72,
+            radFade: 1,
+            z: 0,
+            w: 0,
+            pointColor: { r: 255, g: 125, b: 0 }
+        }
+        this.createGUI()
         this.createMesh();
         this.createPipeline();
         this.creatUniform()
-        this.createBindGroup()
     }
 
+    createGUI() {
+        const gui = new GUI();
+        gui.width = 200;
+        gui.add(this.gui, 'pointSize', 0, 10).step(0.01).name('pointSize');
+        gui.add(this.gui, 'radFade', 0, 1).step(0.01).name('radFade');
+        gui.addColor(this.gui, 'pointColor').name('pointColor');
+
+    }
     createPipeline() {
+        const groundBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [{
+                binding: 0,
+                visibility: GPUShaderStage.VERTEX,
+                buffer: { type: 'uniform' }
+            }]
+        });
+        const cameraBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [{
+                binding: 0,
+                visibility: GPUShaderStage.VERTEX,
+                buffer: { type: 'uniform' }
+            }]
+        });
+        const pipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [groundBindGroupLayout, cameraBindGroupLayout]
+        });
         this.pipeline = this.device.createRenderPipeline({
-            layout: 'auto',
+            layout: pipelineLayout,
             vertex: {
                 module: this.device.createShaderModule({
                     code: particleWGSL,
@@ -68,6 +101,12 @@ export class InitPoint {
                                 // color
                                 shaderLocation: 1,
                                 offset: this.particleColorOffset,
+                                format: 'float32x4',
+                            },
+                            {
+                                // extra
+                                shaderLocation: 3,
+                                offset: this.particleExtraOffset, 
                                 format: 'float32x4',
                             },
                         ],
@@ -95,7 +134,7 @@ export class InitPoint {
                     {
                         format: this.presentationFormat,
                         blend: {
-                            color: {
+                         /*    color: {
                                 srcFactor: 'one',
                                 dstFactor: 'one-minus-src-alpha',
                                 operation: 'add',
@@ -104,7 +143,17 @@ export class InitPoint {
                                 srcFactor: 'one',
                                 dstFactor: 'one-minus-src-alpha',
                                 operation: 'add',
-                            },
+                            }, */
+                              color: {
+            srcFactor: 'src-alpha',
+            dstFactor: 'one',
+            operation: 'add',
+          },
+          alpha: {
+            srcFactor: 'zero',
+            dstFactor: 'one',
+            operation: 'add',
+          },
                         }
 
                     },
@@ -115,44 +164,30 @@ export class InitPoint {
             },
 
             depthStencil: {
-                depthWriteEnabled: true,
+                depthWriteEnabled: false,
                 depthCompare: 'less',
                 format: 'depth24plus',
             },
         });
     }
-    createBuffer() {
-        this.particlesBuffer = this.device.createBuffer({
-            size: this.numParticles * this.particleInstanceByteSize,
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
+    creatUniform() {
+        const bufferSize = 32
+        this.uniformBuffer = this.device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
-    }
-    createBindGroup() {
-        this.uniformBindGroup_PARTICLE = this.device.createBindGroup({
+        this.uniformBindGroup = this.device.createBindGroup({
             layout: this.pipeline.getBindGroupLayout(0),
             entries: [
                 {
                     binding: 0,
                     resource: {
-                        buffer: this.uniformBuffer_PARTICLE,
-                    },
-                },
-            ],
-        });
+                        buffer: this.uniformBuffer,
+                    }
+                }
 
-    }
-    creatUniform() {
-        const uniformBufferSize =
-            4 * 4 * 4 + // modelViewProjectionMatrix : mat4x4f
-            3 * 4 + // right : vec3f
-            4 + // padding
-            3 * 4 + // up : vec3f
-            4 + // padding
-            0;
-        this.uniformBuffer_PARTICLE = this.device.createBuffer({
-            size: uniformBufferSize,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            ],
         });
     }
     createMesh() {
@@ -169,11 +204,30 @@ export class InitPoint {
         this.quadVertexBuffer.unmap();
     }
 
-    draw(passEncoder: GPURenderPassEncoder) {
-        passEncoder.setPipeline(this.pipeline);
-        passEncoder.setBindGroup(0, this.uniformBindGroup_PARTICLE);
-        passEncoder.setVertexBuffer(0, this.particlesBuffer);
-        passEncoder.setVertexBuffer(1, this.quadVertexBuffer);
-        passEncoder.draw(6, this.numParticles, 0, 0);
+
+    draw({ renderPass, uniform }: { renderPass: GPURenderPassEncoder, uniform?: GPUBindGroup[] }) {
+        renderPass.setPipeline(this.pipeline);
+        const data = new Float32Array(8); // 8 floats = 32 bytes
+        data[0] = this.gui.pointSize; // pointSize
+        data[1] = this.gui.radFade; 
+        data[2] = 0; 
+        data[3] = 0; 
+        // padding 4
+        data[4] =this.gui.pointColor.r / 255;
+        data[5] = this.gui.pointColor.g / 255;
+        data[6] = this.gui.pointColor.b / 255;
+        data[7] = 0;
+
+        this.device.queue.writeBuffer(this.uniformBuffer, 0, data.buffer);
+      
+        renderPass.setBindGroup(0, this.uniformBindGroup);
+        if (uniform && uniform.length > 0) {
+            for (let i = 0; i < uniform.length; i++) {
+                renderPass.setBindGroup(i + 1, uniform[i]);
+            }
+        }
+        renderPass.setVertexBuffer(0, this.particlesBuffer);
+        renderPass.setVertexBuffer(1, this.quadVertexBuffer);
+        renderPass.draw(6, this.numParticles, 0, 0);
     }
 }

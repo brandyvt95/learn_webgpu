@@ -1,9 +1,10 @@
 import groundWGSL from '../shaders/ground.wgsl'; // cách import raw text (tuỳ config bundler)
 
+import { GUI } from 'dat.gui';
 interface GroundOptions {
-  device: GPUDevice;
-  presentationFormat: GPUTextureFormat;
-  cameraBuffer:any
+    device: GPUDevice;
+    presentationFormat: GPUTextureFormat;
+    cameraBuffer: any
 }
 
 export class InitGround {
@@ -12,25 +13,58 @@ export class InitGround {
     vertexBuffer: GPUBuffer;
     indexBuffer: GPUBuffer;
     indexCount: number;
-    uniformBindGroup_GROUND: any;
-    uniformBuffer_GROUND: any;
-    presentationFormat:any
-    cameraBuffer:any
-    constructor({device,presentationFormat,cameraBuffer}: GroundOptions) {
+    uniformBindGroup: any;
+    uniformBuffer: any;
+    presentationFormat: any
+    cameraBuffer: any
+    gui:any
+    constructor({ device, presentationFormat, cameraBuffer }: GroundOptions) {
         this.device = device;
         this.cameraBuffer = cameraBuffer
-        this.uniformBindGroup_GROUND = null;
-        this.uniformBuffer_GROUND = null
+        this.uniformBindGroup = null;
+        this.uniformBuffer = null
         this.presentationFormat = presentationFormat
+        this.gui = {
+            x:0,
+            y:-1,
+            z:0,
+            w:0
+        }
+        this.createGUI()
         this.createPipeline();
         this.creatUniform()
         this.createMesh();
 
     }
 
+    createGUI() {
+        const gui = new GUI();
+        gui.width = 325;
+        gui.add(this.gui, 'x', -10, 10).step(0.1).name('Position X');
+        gui.add(this.gui, 'y', -10, 10).step(0.1).name('Position Y');
+        gui.add(this.gui, 'z', -10, 10).step(0.1).name('Position Z');
+        gui.add(this.gui, 'w', -10, 10).step(0.1).name('Position W');
+    }
     createPipeline() {
+        const groundBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [{
+                binding: 0,
+                visibility: GPUShaderStage.VERTEX,
+                buffer: { type: 'uniform' }
+            }]
+        });
+        const cameraBindGroupLayout = this.device.createBindGroupLayout({
+            entries: [{
+                binding: 0,
+                visibility: GPUShaderStage.VERTEX,
+                buffer: { type: 'uniform' }
+            }]
+        });
+        const pipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [groundBindGroupLayout, cameraBindGroupLayout]
+        });
         this.pipeline = this.device.createRenderPipeline({
-            layout: 'auto',
+            layout: pipelineLayout,
             vertex: {
                 module: this.device.createShaderModule({ code: groundWGSL }),
                 entryPoint: 'vs_main',
@@ -52,7 +86,7 @@ export class InitGround {
             primitive: {
                 topology: 'triangle-list',
                 cullMode: 'none',
-                
+
             },
             depthStencil: {
                 depthWriteEnabled: true,
@@ -61,32 +95,7 @@ export class InitGround {
             },
         } as any);
     }
-    creatUniform() {
-        const uniformBufferSize =
-            4 * 4 * 4 + // modelViewProjectionMatrix : mat4x4f
-            3 * 4 + // right : vec3f
-            4 + // padding
-            3 * 4 + // up : vec3f
-            4 + // padding
-            0;
-        this.uniformBuffer_GROUND = this.device.createBuffer({
-            size: uniformBufferSize,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
 
-        this.uniformBindGroup_GROUND = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(0),
-            entries: [
-                {
-                    binding: 0,
-                    resource: {
-                        buffer: this.uniformBuffer_GROUND,
-                    },
-                }
-                
-            ],
-        });
-    }
     createMesh() {
         // Tạo plane đơn giản 2x2, 2 tam giác, có vị trí và UV
         // Vertex data: [x,y,z, u,v]
@@ -116,11 +125,47 @@ export class InitGround {
         new Uint16Array(this.indexBuffer.getMappedRange()).set(indices);
         this.indexBuffer.unmap();
     }
+    creatUniform() {
+        const bufferSize = 4 * 4; // 4 floats * 4 bytes = 16 bytes
+        this.uniformBuffer = this.device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
 
-    draw({renderPass,uniform}:{renderPass: GPURenderPassEncoder,uniform?:GPUBindGroup[]}) {
+        this.uniformBindGroup = this.device.createBindGroup({
+            layout: this.pipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.uniformBuffer,
+                    }
+                }
+
+            ],
+        });
+    }
+    updateUniforms(values: [number, number, number, number]) {
+        const data = new Float32Array(values);
+        this.device.queue.writeBuffer(
+            this.uniformBuffer,
+            0,      
+            data.buffer,
+            data.byteOffset,
+            data.byteLength
+        );
+    }
+
+    draw({ renderPass, uniform }: { renderPass: GPURenderPassEncoder, uniform?: GPUBindGroup[] }) {
         renderPass.setPipeline(this.pipeline);
-        renderPass.setBindGroup(0, this.uniformBindGroup_GROUND);
-     
+        this.updateUniforms([this.gui.x,this.gui.y,this.gui.z,this.gui.w]);
+        renderPass.setBindGroup(0, this.uniformBindGroup);
+
+        if (uniform && uniform.length > 0) {
+            for (let i = 0; i < uniform.length; i++) {
+            renderPass.setBindGroup(i + 1, uniform[i]);
+            }
+        }
         renderPass.setVertexBuffer(0, this.vertexBuffer);
         renderPass.setIndexBuffer(this.indexBuffer, 'uint16');
         renderPass.drawIndexed(this.indexCount);
