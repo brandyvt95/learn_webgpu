@@ -7,7 +7,7 @@ import probabilityMapWGSL from './shaders/probabilityMap.wgsl';
 import { configureContext, quitIfWebGPUNotAvailable } from './util';
 import { createInputHandler } from './intractive';
 import { initCamera } from './camera/index';
-import { createTextureFromPNGWithoutMipmaps, cropBinToWebGPUTexture } from './loadTexture';
+import { createTextureFromPNGWithoutMipmaps, cropBinToWebGPUTexture, loadCubemapTexture } from './loadTexture';
 import {
   createSkinnedGridBuffers,
   createSkinnedGridRenderPipeline,
@@ -18,6 +18,8 @@ import { SimUBO } from './SimUBO';
 import { InitPoint } from './Point';
 import { convertGLBToJSONAndBinary, GLTFSkin } from './utils/glbUtils';
 import { createBindGroupCluster } from './bitonicSort/utils'
+import { InitCubeMap } from './CubeMap';
+import { OrbitCamera } from './camera/OrbitCamera';
 
 const MAT4X4_BYTES = 64;
 
@@ -51,7 +53,7 @@ const SIM_UBO_PARAMS = {
   snapFrame: 0
 };
 const CONFIG_POINT_UBO = {
-  numParticles: 350000,
+  numParticles: 200000,
   particlePositionOffset: 0,
   particleColorOffset: 4 * 4,
   particleExtraOffset: 4 * 4,
@@ -65,16 +67,6 @@ const CONFIG_POINT_UBO = {
 
 }
 async function main() {
-  const numParticles = 345000;
-  const particlePositionOffset = 0;
-  const particleColorOffset = 4 * 4;
-  const particleInstanceByteSize =
-    3 * 4 + // position
-    1 * 4 + // lifetime
-    4 * 4 + // color
-    3 * 4 + // velocity
-    1 * 4 + // padding
-    0;
 
 
 
@@ -145,7 +137,7 @@ async function main() {
 
 
   const POINT_BUFFER = device.createBuffer({
-    size: numParticles * particleInstanceByteSize,
+    size: CONFIG_POINT_UBO.numParticles * CONFIG_POINT_UBO.particleInstanceByteSize,
     usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
   });
 
@@ -170,6 +162,8 @@ async function main() {
     presentationFormat: presentationFormat,
     cameraBuffer: BUFFER_CAMERA_UNIFORM
   });
+
+   
 
 
 
@@ -202,205 +196,28 @@ async function main() {
   };
 
 
-  const generalUniformsBuffer = device.createBuffer({
-    size: Uint32Array.BYTES_PER_ELEMENT * 2,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+const cameraOrbit = new OrbitCamera(canvas);
+ 
+// Fetch the 6 separate images for negative/positive x, y, z axis of a cubemap
+// and upload it into a GPUTexture.
+
+const cubemapUrls = [
+  '/src/assets/img/cubemap/posx.jpg',
+  '/src/assets/img/cubemap/negx.jpg',
+  '/src/assets/img/cubemap/posy.jpg',
+  '/src/assets/img/cubemap/negy.jpg',
+  '/src/assets/img/cubemap/posz.jpg',
+  '/src/assets/img/cubemap/negz.jpg',
+];
+
+const cubemapTexture = await loadCubemapTexture(device, cubemapUrls);
+const enviromentCube = new InitCubeMap({
+    device: device,
+    presentationFormat: presentationFormat,
+    cameraBuffer: BUFFER_CAMERA_UNIFORM,
+    cubemapTexture:cubemapTexture
   });
-  const generalUniformsBGCLuster = createBindGroupCluster(
-    [0],
-    [GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT],
-    ['buffer'],
-    [{ type: 'uniform' }],
-    [[{ buffer: generalUniformsBuffer }]],
-    'General',
-    device
-  );
-  // Same bindGroupLayout as in main file.
-  const nodeUniformsBindGroupLayout = device.createBindGroupLayout({
-    label: 'NodeUniforms.bindGroupLayout',
-    entries: [
-      {
-        binding: 0,
-        buffer: {
-          type: 'uniform',
-        },
-        visibility: GPUShaderStage.VERTEX,
-      },
-    ],
-  });
-  const whaleScene = await fetch('/src/assets/model/whale.glb')
-    .then((res) => res.arrayBuffer())
-    .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
-  whaleScene.meshes[0].buildRenderPipeline(
-    device,
-    gltfWGSL,
-    gltfWGSL,
-    presentationFormat,
-    depthTexture.format,
-    [
-      cameraBGCluster.bindGroupLayout,
-      generalUniformsBGCLuster.bindGroupLayout,
-      nodeUniformsBindGroupLayout,
-      GLTFSkin.skinBindGroupLayout,
-    ]
-  );
-
-
-
-
-  // Pass Descriptor for GLTFs
-  const gltfRenderPassDescriptor: GPURenderPassDescriptor = {
-    colorAttachments: [
-      {
-        view: undefined, // Assigned later
-
-        clearValue: [0.3, 0.3, 0.3, 1.0],
-        loadOp: 'clear',
-        storeOp: 'store',
-      },
-    ],
-    depthStencilAttachment: {
-      view: depthTexture.createView(),
-      depthLoadOp: 'clear',
-      depthClearValue: 1.0,
-      depthStoreOp: 'store',
-    },
-  };
-
-  // Pass descriptor for grid with no depth testing
-  const skinnedGridRenderPassDescriptor: GPURenderPassDescriptor = {
-    colorAttachments: [
-      {
-        view: undefined, // Assigned later
-
-        clearValue: [0.3, 0.3, 0.3, 1.0],
-        loadOp: 'clear',
-        storeOp: 'store',
-      },
-    ],
-  };
-
-  const animSkinnedGrid = (boneTransforms: Mat4[], angle: number) => {
-    const m = mat4.identity();
-    mat4.rotateZ(m, angle, boneTransforms[0]);
-    mat4.translate(boneTransforms[0], vec3.create(4, 0, 0), m);
-    mat4.rotateZ(m, angle, boneTransforms[1]);
-    mat4.translate(boneTransforms[1], vec3.create(4, 0, 0), m);
-    mat4.rotateZ(m, angle, boneTransforms[2]);
-  };
-
-  // Create a group of bones
-  // Each index associates an actual bone to its transforms, bindPoses, uniforms, etc
-  const createBoneCollection = (numBones: number): BoneObject => {
-    // Initial bone transformation
-    const transforms: Mat4[] = [];
-    // Bone bind poses, an extra matrix per joint/bone that represents the starting point
-    // of the bone before any transformations are applied
-    const bindPoses: Mat4[] = [];
-    // Create a transform, bind pose, and inverse bind pose for each bone
-    for (let i = 0; i < numBones; i++) {
-      transforms.push(mat4.identity());
-      bindPoses.push(mat4.identity());
-    }
-
-    // Get initial bind pose positions
-    animSkinnedGrid(bindPoses, 0);
-    const bindPosesInv = bindPoses.map((bindPose) => {
-      return mat4.inverse(bindPose);
-    });
-
-    return {
-      transforms,
-      bindPoses,
-      bindPosesInv,
-    };
-  };
-
-
-  // Create skinned grid resources
-  const skinnedGridVertexBuffers = createSkinnedGridBuffers(device);
-  // Buffer for our uniforms, joints, and inverse bind matrices
-  const skinnedGridUniformBufferUsage: GPUBufferDescriptor = {
-    // 5 4x4 matrices, one for each bone
-    size: MAT4X4_BYTES * 5,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  };
-  const skinnedGridJointUniformBuffer = device.createBuffer(
-    skinnedGridUniformBufferUsage
-  );
-  const skinnedGridInverseBindUniformBuffer = device.createBuffer(
-    skinnedGridUniformBufferUsage
-  );
-  const skinnedGridBoneBGCluster = createBindGroupCluster(
-    [0, 1],
-    [GPUShaderStage.VERTEX, GPUShaderStage.VERTEX],
-    ['buffer', 'buffer'],
-    [{ type: 'read-only-storage' }, { type: 'read-only-storage' }],
-    [
-      [
-        { buffer: skinnedGridJointUniformBuffer },
-        { buffer: skinnedGridInverseBindUniformBuffer },
-      ],
-    ],
-    'SkinnedGridJointUniforms',
-    device
-  );
-  const skinnedGridPipeline = createSkinnedGridRenderPipeline(
-    device,
-    presentationFormat,
-    gridWGSL,
-    gridWGSL,
-    [
-      cameraBGCluster.bindGroupLayout,
-      generalUniformsBGCLuster.bindGroupLayout,
-      skinnedGridBoneBGCluster.bindGroupLayout,
-    ]
-  );
-  const gridBoneCollection = createBoneCollection(5);
-  for (let i = 0; i < gridBoneCollection.bindPosesInv.length; i++) {
-    device.queue.writeBuffer(
-      skinnedGridInverseBindUniformBuffer,
-      i * 64,
-      gridBoneCollection.bindPosesInv[i]
-    );
-  }
-
-  const origMatrices = new Map<number, Mat4>();
-  const animWhaleSkin = (skin: GLTFSkin, angle: number) => {
-    for (let i = 0; i < skin.joints.length; i++) {
-      // Index into the current joint
-      const joint = skin.joints[i];
-      // If our map does
-      if (!origMatrices.has(joint)) {
-        origMatrices.set(joint, whaleScene.nodes[joint].source.getMatrix());
-      }
-      // Get the original position, rotation, and scale of the current joint
-      const origMatrix = origMatrices.get(joint);
-      let m = mat4.create();
-      // Depending on which bone we are accessing, apply a specific rotation to the bone's original
-      // transformation to animate it
-      if (joint === 1 || joint === 0) {
-        m = mat4.rotateY(origMatrix, -angle);
-      } else if (joint === 3 || joint === 4) {
-        m = mat4.rotateX(origMatrix, joint === 3 ? angle : -angle);
-      } else {
-        m = mat4.rotateZ(origMatrix, angle);
-      }
-      // Apply the current transformation to the transform values within the relevant nodes
-      // (these nodes, of course, each being nodes that represent joints/bones)
-      whaleScene.nodes[joint].source.position = mat4.getTranslation(m);
-      whaleScene.nodes[joint].source.scale = mat4.getScaling(m);
-      whaleScene.nodes[joint].source.rotation = quat.fromMat(m);
-    }
-  };
-
-
-
-
-
-
-
-
+  console.log(cameraOrbit)
   function updateUniformGlobal() {
     const { modelViewProjectionMatrix, viewMatrix } = getModelViewProjectionMatrix(SIM_UBO_PARAMS.deltaTime);
     device.queue.writeBuffer(
@@ -409,7 +226,7 @@ async function main() {
       new Float32Array([
         SIM_UBO_PARAMS.simulate ? SIM_UBO_PARAMS.deltaTime * .1 : 0.0,
         coutnFrame,
-        0.0,
+        then,
         0.0, // padding
         Math.random() * 100,
         Math.random() * 100, // seed.xy
@@ -417,7 +234,13 @@ async function main() {
         1 + Math.random(), // seed.zw
       ])
     );
-
+  device.queue.writeBuffer(
+    enviromentCube.uniformBuffer,
+    0,
+    modelViewProjectionMatrix.buffer,
+    modelViewProjectionMatrix.byteOffset,
+    modelViewProjectionMatrix.byteLength
+  );
 
     const sharedUniformCamera = new Float32Array([
       ...modelViewProjectionMatrix,
@@ -443,39 +266,6 @@ async function main() {
 
 
 
-    // const angle = Math.sin(coutnFrame)
-    // animSkinnedGrid(gridBoneCollection.transforms, angle);
-
-    // // Write to skinned grid bone uniform buffer
-    // for (let i = 0; i < gridBoneCollection.transforms.length; i++) {
-    //   device.queue.writeBuffer(
-    //     skinnedGridJointUniformBuffer,
-    //     i * 64,
-    //     gridBoneCollection.transforms[i]
-    //   );
-    // }
-
-    // // Difference between these two render passes is just the presence of depthTexture
-    // gltfRenderPassDescriptor.colorAttachments[0].view = context
-    //   .getCurrentTexture()
-    //   .createView();
-
-    // skinnedGridRenderPassDescriptor.colorAttachments[0].view = context
-    //   .getCurrentTexture()
-    //   .createView();
-
-    // // Update node matrixes
-    // for (const scene of whaleScene.scenes) {
-    //   scene.root.updateWorldMatrix(device);
-    // }
-
-    // // Updates skins (we index into skins in the renderer, which is not the best approach but hey)
-    // animWhaleSkin(whaleScene.skins[0], angle);
-    // // Node 6 should be the only node with a drawable mesh so hopefully this works fine
-    // whaleScene.skins[0].update(device, 6, whaleScene.nodes);
-
-
-
     const swapChainTexture = context.getCurrentTexture();
     // prettier-ignore
     renderPassDescriptor.colorAttachments[0].view = swapChainTexture.createView();
@@ -485,21 +275,14 @@ async function main() {
       const computePass = commandEncoder.beginComputePass();
       simUBO.draw(computePass)
     }
-    // {
-    //   const passEncoder = commandEncoder.beginRenderPass(
-    //     gltfRenderPassDescriptor
-    //   );
-    //   for (const scene of whaleScene.scenes) {
-    //     scene.root.renderDrawables(passEncoder, [
-    //       cameraBGCluster.bindGroups[0],
-    //       generalUniformsBGCLuster.bindGroups[0],
-    //     ]);
-    //   }
-    //   passEncoder.end();
-    // }
     {
       const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
-
+      enviromentCube.draw({
+        renderPass: renderPass,
+        uniform: [
+          cameraBGCluster.bindGroups[0]
+        ]
+      });
       ground.draw({
         renderPass: renderPass,
         uniform: [
@@ -532,8 +315,8 @@ async function main() {
     // Chỉ cập nhật EL_INFO_FPS mỗi 0.5 giây
     if (now - lastInfoUpdate > 0.5) {
       EL_INFO_FPS.textContent = `\
-fps: ${(1 / deltaTime).toFixed(1)}
-js: ${jsTime.toFixed(1)}ms
+        fps: ${(1 / deltaTime).toFixed(1)}
+        js: ${jsTime.toFixed(1)}ms
       `;
       lastInfoUpdate = now;
     }

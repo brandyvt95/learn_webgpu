@@ -63,7 +63,8 @@ export class SimUBO {
         const simulationUBOBufferSize =
             1 * 4 + // deltaTime
             1 * 4 + // brightnessFactor
-            2 * 4 + // padding
+            1 * 4 + // time
+            1 * 4 + // padding
             4 * 4 + // seed
             0;
         this.simulationUBOBuffer = this.device.createBuffer({

@@ -14,183 +14,198 @@ fn rand() -> f32 {
   rand_seed.y = fract(cos(dot(rand_seed, vec2f(54.47856553, 345.84153136))) * 534.7645);
   return rand_seed.y;
 }
+// Frame rate independent interpolation functions
+// fn lerpCoefFPS(t: f32, dt: f32) -> f32 {
+//     return 1.0 - exp2(log2(1.0 - t) * dt);
+// }
 
-// Hash function để sinh giá trị ngẫu nhiên (dùng trong noise)
-fn mod289(x: vec4<f32>) -> vec4<f32> {
-    return x - floor(x * (1.0 / 289.0)) * 289.0;
+// fn frictionFPS(t: f32, dt: f32) -> f32 {
+//     return exp2(log2(t) * dt);
+// }
+
+// fn lerpFPS(x: f32, y: f32, t: f32, dt: f32) -> f32 {
+//     return mix(x, y, lerpCoefFPS(t, dt));
+// }
+
+// ============================================================================
+// BEAUTIFUL CURL NOISE FOR WGSL
+// Optimized for fluid simulation and particle systems
+// ============================================================================
+
+// Simple hash function for noise generation
+fn hash31(p: vec3<f32>) -> f32 {
+    var p3 = fract(p * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
 }
 
-fn mod289f(x: f32) -> f32 {
-    return x - floor(x * (1.0 / 289.0)) * 289.0;
+fn hash33(p: vec3<f32>) -> vec3<f32> {
+    var p3 = fract(p * vec3<f32>(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yxz + 33.33);
+    return fract((p3.xxy + p3.yxx) * p3.zyx);
 }
 
-fn permute(x: vec4<f32>) -> vec4<f32> {
-    return mod289(((x * 34.0) + 1.0) * x);
+// Smooth noise function
+fn noise(p: vec3<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f);
+    
+    return mix(
+        mix(
+            mix(hash31(i + vec3<f32>(0.0, 0.0, 0.0)), 
+                hash31(i + vec3<f32>(1.0, 0.0, 0.0)), u.x),
+            mix(hash31(i + vec3<f32>(0.0, 1.0, 0.0)), 
+                hash31(i + vec3<f32>(1.0, 1.0, 0.0)), u.x), u.y),
+        mix(
+            mix(hash31(i + vec3<f32>(0.0, 0.0, 1.0)), 
+                hash31(i + vec3<f32>(1.0, 0.0, 1.0)), u.x),
+            mix(hash31(i + vec3<f32>(0.0, 1.0, 1.0)), 
+                hash31(i + vec3<f32>(1.0, 1.0, 1.0)), u.x), u.y), u.z);
 }
 
-fn permutef(x: f32) -> f32 {
-    return mod289f(((x * 34.0) + 1.0) * x);
+// Vector noise using hash33
+fn vnoise(p: vec3<f32>) -> vec3<f32> {
+    return hash33(p) * 2.0 - 1.0;
 }
 
-fn taylorInvSqrt(r: vec4<f32>) -> vec4<f32> {
-    return vec4<f32>(1.79284291400159) - vec4<f32>(0.85373472095314) * r;
-}
-
-fn taylorInvSqrtf(r: f32) -> f32 {
-    return 1.79284291400159 - 0.85373472095314 * r;
-}
-
-fn lessThanZero(x: vec4<f32>) -> vec4<f32> {
-    return vec4<f32>(
-        select(0.0, 1.0, x.x < 0.0),
-        select(0.0, 1.0, x.y < 0.0),
-        select(0.0, 1.0, x.z < 0.0),
-        select(0.0, 1.0, x.w < 0.0)
-    );
-}
-
-fn grad4(j: f32, ip: vec4<f32>) -> vec4<f32> {
-    let ones = vec4<f32>(1.0, 1.0, 1.0, -1.0);
-    var p: vec4<f32>;
-
-    let j3 = vec3<f32>(j);
-    var temp_xyz: vec3<f32> = floor(fract(j3 * ip.xyz) * 7.0) * ip.z - 1.0;
-    p = vec4<f32>(temp_xyz, p.w);
-
-    p.w = 1.5 - dot(abs(p.xyz), ones.xyz);
-
-    let s = lessThanZero(p);
-    var temp: vec4<f32> = s;
-
-   p = vec4<f32>(
-    p.xyz + (temp.xyz * 2.0 - vec3<f32>(1.0)) * vec3<f32>(temp.www),
-    p.w
-);
-
-    return p;
-}
-
-fn snoise4(v: vec4<f32>) -> vec4<f32> {
-    let C = vec4<f32>(0.138196601125011, 0.276393202250021, 0.414589803375032, -0.447213595499958);
-
-    let i = floor(v + dot(v, vec4<f32>(0.309016994374947451)));
-
-    let x0 = v - i + dot(i, vec4<f32>(C.x));
-
-    var i0 = vec4<f32>(0.0);
-
-    let isX = vec3<f32>(
-        select(0.0, 1.0, x0.y > x0.x),
-        select(0.0, 1.0, x0.z > x0.x),
-        select(0.0, 1.0, x0.w > x0.x)
-    );
-    let isYZ = vec3<f32>(
-        select(0.0, 1.0, x0.z > x0.y),
-        select(0.0, 1.0, x0.w > x0.y),
-        select(0.0, 1.0, x0.w > x0.z)
-    );
-
-    i0.x = isX.x + isX.y + isX.z;
-    i0.y = 1.0 - isX.x;
-    i0.z = 1.0 - isX.y;
-    i0.w = 1.0 - isX.z;
-
-    i0.y = i0.y + isYZ.x + isYZ.y;
-    i0.z = i0.z + isYZ.z;
-    i0.w = i0.w + (1.0 - isYZ.z);
-
-    let i3 = clamp(i0, vec4<f32>(0.0), vec4<f32>(1.0));
-    let i2 = clamp(i0 - vec4<f32>(1.0), vec4<f32>(0.0), vec4<f32>(1.0));
-    let i1 = clamp(i0 - vec4<f32>(2.0), vec4<f32>(0.0), vec4<f32>(1.0));
-
-    let x1 = x0 - i1 + vec4<f32>(C.x);
-    let x2 = x0 - i2 + vec4<f32>(C.y);
-    let x3 = x0 - i3 + vec4<f32>(C.z);
-    let x4 = x0 + vec4<f32>(C.w);
-
-    let ii = mod289(i);
-    let j0 = permutef(permutef(permutef(permutef(ii.w) + ii.z) + ii.y) + ii.x);
-
-    let j1 = vec4<f32>(
-        permutef(permutef(permutef(permutef(
-            ii.w + i1.w) + ii.z + i1.z) + ii.y + i1.y) + ii.x + i1.x),
-        permutef(permutef(permutef(permutef(
-            ii.w + i2.w) + ii.z + i2.z) + ii.y + i2.y) + ii.x + i2.x),
-        permutef(permutef(permutef(permutef(
-            ii.w + i3.w) + ii.z + i3.z) + ii.y + i3.y) + ii.x + i3.x),
-        permutef(permutef(permutef(permutef(
-            ii.w + 1.0) + ii.z + 1.0) + ii.y + 1.0) + ii.x + 1.0)
-    );
-
-    let ip = vec4<f32>(1.0 / 294.0, 1.0 / 49.0, 1.0 / 7.0, 0.0);
-
-    let p0 = grad4(j0, ip);
-    let p1 = grad4(j1.x, ip);
-    let p2 = grad4(j1.y, ip);
-    let p3 = grad4(j1.z, ip);
-    let p4 = grad4(j1.w, ip);
-
-    let norm = taylorInvSqrt(vec4<f32>(
-        dot(p0, p0),
-        dot(p1, p1),
-        dot(p2, p2),
-        dot(p3, p3)
-    ));
-    let norm4 = taylorInvSqrtf(dot(p4, p4));
-
-    let p0n = p0 * norm.x;
-    let p1n = p1 * norm.y;
-    let p2n = p2 * norm.z;
-    let p3n = p3 * norm.w;
-    let p4n = p4 * norm4;
-
-    let values0 = vec3<f32>(dot(p0n, x0), dot(p1n, x1), dot(p2n, x2));
-    let values1 = vec2<f32>(dot(p3n, x3), dot(p4n, x4));
-
-    let m0 = max(vec3<f32>(0.5) - vec3<f32>(dot(x0, x0), dot(x1, x1), dot(x2, x2)), vec3<f32>(0.0));
-    let m1 = max(vec2<f32>(0.5) - vec2<f32>(dot(x3, x3), dot(x4, x4)), vec2<f32>(0.0));
-
-    let temp0 = -6.0 * m0 * m0 * values0;
-    let temp1 = -6.0 * m1 * m1 * values1;
-
-    let mmm0 = m0 * m0 * m0;
-    let mmm1 = m1 * m1 * m1;
-
-    let dx = temp0.x * x0.x + temp0.y * x1.x + temp0.z * x2.x + temp1.x * x3.x + temp1.y * x4.x
-        + mmm0.x * p0n.x + mmm0.y * p1n.x + mmm0.z * p2n.x + mmm1.x * p3n.x + mmm1.y * p4n.x;
-
-    let dy = temp0.x * x0.y + temp0.y * x1.y + temp0.z * x2.y + temp1.x * x3.y + temp1.y * x4.y
-        + mmm0.x * p0n.y + mmm0.y * p1n.y + mmm0.z * p2n.y + mmm1.x * p3n.y + mmm1.y * p4n.y;
-
-    let dz = temp0.x * x0.z + temp0.y * x1.z + temp0.z * x2.z + temp1.x * x3.z + temp1.y * x4.z
-        + mmm0.x * p0n.z + mmm0.y * p1n.z + mmm0.z * p2n.z + mmm1.x * p3n.z + mmm1.y * p4n.z;
-
-    let dw = temp0.x * x0.w + temp0.y * x1.w + temp0.z * x2.w + temp1.x * x3.w + temp1.y * x4.w
-        + mmm0.x * p0n.w + mmm0.y * p1n.w + mmm0.z * p2n.w + mmm1.x * p3n.w + mmm1.y * p4n.w;
-
-    return 42.0 * vec4<f32>(dx, dy, dz, dw);
-}
-fn curl4(p: vec3<f32>, noiseTime: f32, persistence: f32) -> vec3<f32> {
-    var xNoisePotentialDerivatives: vec4<f32> = vec4<f32>(0.0);
-    var yNoisePotentialDerivatives: vec4<f32> = vec4<f32>(0.0);
-    var zNoisePotentialDerivatives: vec4<f32> = vec4<f32>(0.0);
-
-    for (var i: i32 = 0; i < 3; i = i + 1) {
-        let twoPowI: f32 = pow(2.0, f32(i));
-        let scale: f32 = 0.5 * twoPowI * pow(persistence, f32(i));
-
-        xNoisePotentialDerivatives = xNoisePotentialDerivatives + snoise4(vec4<f32>(p * twoPowI, noiseTime)) * scale;
-        yNoisePotentialDerivatives = yNoisePotentialDerivatives + snoise4(vec4<f32>((p + vec3<f32>(123.4, 129845.6, -1239.1)) * twoPowI, noiseTime)) * scale;
-        zNoisePotentialDerivatives = zNoisePotentialDerivatives + snoise4(vec4<f32>((p + vec3<f32>(-9519.0, 9051.0, -123.0)) * twoPowI, noiseTime)) * scale;
+// Fractal Brownian Motion (fBm) for more detailed noise
+fn fbm(p: vec3<f32>) -> f32 {
+    var value = 0.0;
+    var amplitude = 0.5;
+    var frequency = 1.0;
+    
+    for (var i = 0; i < 4; i++) {
+        value += amplitude * noise(p * frequency);
+        amplitude *= 0.5;
+        frequency *= 2.0;
     }
+    
+    return value;
+}
 
+// Vector fBm
+fn vfbm(p: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(
-        zNoisePotentialDerivatives.y - yNoisePotentialDerivatives.z,
-        xNoisePotentialDerivatives.z - zNoisePotentialDerivatives.x,
-        yNoisePotentialDerivatives.x - xNoisePotentialDerivatives.y
+        fbm(p + vec3<f32>(0.0, 0.0, 0.0)),
+        fbm(p + vec3<f32>(5.2, 1.3, 0.0)),
+        fbm(p + vec3<f32>(0.0, 5.7, 11.1))
     );
 }
 
+// High quality curl noise using analytical derivatives
+fn curlNoise(p: vec3<f32>) -> vec3<f32> {
+    let eps = 0.001;
+    
+    // Sample noise at slightly offset positions
+    let dx = vec3<f32>(eps, 0.0, 0.0);
+    let dy = vec3<f32>(0.0, eps, 0.0);
+    let dz = vec3<f32>(0.0, 0.0, eps);
+    
+    // Get vector field samples
+    let p_x0 = vfbm(p - dx);
+    let p_x1 = vfbm(p + dx);
+    let p_y0 = vfbm(p - dy);
+    let p_y1 = vfbm(p + dy);
+    let p_z0 = vfbm(p - dz);
+    let p_z1 = vfbm(p + dz);
+    
+    // Compute curl using finite differences
+    let curl = vec3<f32>(
+        (p_y1.z - p_y0.z) - (p_z1.y - p_z0.y),
+        (p_z1.x - p_z0.x) - (p_x1.z - p_x0.z),
+        (p_x1.y - p_x0.y) - (p_y1.x - p_y0.x)
+    ) / (2.0 * eps);
+    
+    return curl;
+}
+
+// Simplified curl noise (faster but less detailed)
+fn simpleCurlNoise(p: vec3<f32>) -> vec3<f32> {
+    let eps = 0.01;
+    
+    // Use simple noise for faster computation
+    let n1 = noise(p + vec3<f32>(eps, 0.0, 0.0)) - noise(p - vec3<f32>(eps, 0.0, 0.0));
+    let n2 = noise(p + vec3<f32>(0.0, eps, 0.0)) - noise(p - vec3<f32>(0.0, eps, 0.0));
+    let n3 = noise(p + vec3<f32>(0.0, 0.0, eps)) - noise(p - vec3<f32>(0.0, 0.0, eps));
+    
+    return vec3<f32>(n2 - n3, n3 - n1, n1 - n2) / (2.0 * eps);
+}
+
+// Layered curl noise for more complexity
+fn layeredCurlNoise(p: vec3<f32>, octaves: i32) -> vec3<f32> {
+    var result = vec3<f32>(0.0);
+    var amplitude = 1.0;
+    var frequency = 1.0;
+    
+    for (var i = 0; i < octaves; i++) {
+        result += amplitude * curlNoise(p * frequency);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    
+    return result;
+}
+
+// Time-varying curl noise for animation
+fn animatedCurlNoise(p: vec3<f32>, time: f32) -> vec3<f32> {
+    let p_animated = p + vec3<f32>(
+        sin(time * 0.1) * 0.5,
+        cos(time * 0.15) * 0.3,
+        sin(time * 0.12) * 0.4
+    );
+    
+    return curlNoise(p_animated);
+}
+
+// Turbulent curl noise with domain warping
+fn turbulentCurlNoise(p: vec3<f32>) -> vec3<f32> {
+    // Domain warping for more organic look
+    let warp = vfbm(p * 15.5) * 0.02;
+    let warped_p = p + warp;
+    
+    return curlNoise(warped_p * .1);
+}
+
+// Ridged curl noise (creates sharp ridges)
+fn ridgedCurlNoise(p: vec3<f32>) -> vec3<f32> {
+    let curl = curlNoise(p);
+    return abs(curl) * 2.0 - 1.0;
+}
+
+// Billow curl noise (creates puffy clouds effect)
+fn billowCurlNoise(p: vec3<f32>) -> vec3<f32> {
+    return abs(curlNoise(p));
+}
+
+// Main curl noise function with multiple options
+fn getCurlNoise(p: vec3<f32>, noiseType: i32, time: f32) -> vec3<f32> {
+    switch (noiseType) {
+        case 0: { return curlNoise(p); }                           // High quality
+        case 1: { return simpleCurlNoise(p); }                     // Fast
+        case 2: { return layeredCurlNoise(p, 3); }                 // Detailed
+        case 3: { return animatedCurlNoise(p, time); }             // Animated
+        case 4: { return turbulentCurlNoise(p); }                  // Turbulent
+        case 5: { return ridgedCurlNoise(p); }                     // Ridged
+        case 6: { return billowCurlNoise(p); }                     // Billow
+        default: { return curlNoise(p); }
+    }
+}
+
+// Utility function for normalizing curl noise
+fn normalizedCurlNoise(p: vec3<f32>) -> vec3<f32> {
+    let curl = curlNoise(p);
+    let len = length(curl);
+    if (len > 0.0) {
+        return curl / len;
+    }
+    return vec3<f32>(0.0);
+}
+
+// Curl noise with controllable strength
+fn curlNoiseWithStrength(p: vec3<f32>, strength: f32) -> vec3<f32> {
+    return curlNoise(p) * strength;
+}
 fn rotX(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
@@ -240,7 +255,7 @@ fn vs_main(in : VertexInput) -> VertexOutput {
   var out : VertexOutput;
   out.position = camera_uniforms.modelViewProjectionMatrix * vec4f(position, 1.0);
   //out.color = vec4f(point_uniforms.pointColor.xyz,1.);
-out.color = in.color * vec4f(point_uniforms.pointColor.xyz,1.);
+    out.color = in.color * vec4f(point_uniforms.pointColor.xyz,1.);
   out.quad_pos = in.quad_pos;
   out.extra = vec4f(point_uniforms.radFade,1.,1.,1.);
   return out;
@@ -254,7 +269,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     }
     //var alpha = smoothstep(in.extra.x, in.extra.x + .1, dist);
     var color = in.color;
-    //color.a = color.a * (1.0 - dist);
+    color.a = 1.;
     return color;
 
 }
@@ -266,6 +281,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 struct SimulationParams {
   deltaTime: f32,
   snapFrame: f32,
+  time:f32,
   seed: vec4f,
  // snapFrame: f32,
 }
@@ -295,22 +311,29 @@ fn simulate(@builtin(global_invocation_id) global_invocation_id : vec3u) {
 
   var particle = data.particles[idx];
 
-  particle.position = particle.position + sim_params.deltaTime * particle.velocity;
+ 
   // Apply gravity
-  let noiseCurl = curl4(particle.position * .18, sim_params.snapFrame, 0.5 +  (1.-particle.lifetime) * .21) * .1;
-  //let curlBeauti2 = curlNoise((particle.position + particle.velocity) * 1. );
-  particle.velocity += noiseCurl * 1.;
-  particle.velocity.z -= .1;
+  let spatialScale = .01;
+  
+//    let force2 = BitangentNoise4D(vec4((particle.position) * spatialScale, sim_params.deltaTime * (1.0 + 0.1 * particle.lifetime))) * 3.1;
 
-   particle.lifetime = particle.lifetime - 0.02;
+//   particle.velocity += force2 * .1;
+  //particle.velocity.z -= .1;
+  
+
+ particle.velocity +=  getCurlNoise(particle.position * .7, 4, sim_params.deltaTime);
+  particle.position = particle.position + sim_params.deltaTime * particle.velocity;
+
+
+   particle.lifetime = particle.lifetime - 0.2;
 
   
-  let speed = length(particle.velocity.xyz  * 10. );
-  particle.color = vec4f(speed, speed, speed, 1.0);
+  let speed = length(particle.velocity.xyz  );
+  let speedNorm = clamp(speed , 0.0, 1.0); 
+  particle.color = vec4f(speedNorm,speedNorm,speedNorm, 1.0);
   //particle.color = vec4f(.5,1.,.5, 1.0);
-  particle.color.a = smoothstep(0.0, 0.9, particle.lifetime);
-  
-  if (particle.lifetime < 0.2) {
+//  particle.color.a = smoothstep(0.0, 0.9, particle.lifetime);
+  if (particle.lifetime < 0. ) {
       let textureWidth = 6000;
       let particleIndex = i32(global_invocation_id.x);
 
@@ -347,15 +370,15 @@ fn simulate(@builtin(global_invocation_id) global_invocation_id : vec3u) {
           let color0: vec4<f32> = textureLoad(texture, pos0, 0);
           let color1: vec4<f32> = textureLoad(texture, pos1, 0);
 
-          mixedColor = mix(color0, color1, randT);
+          mixedColor = mix(color0, color1, .5);
       }
 
       // Xoay vector nếu cần
-      let rotated_xyz = rotX(-3.141592653589793 / 2.0) * mixedColor.xyz;
+     let rotated_xyz = rotX(-3.141592653589793 / 2.0) * mixedColor.xyz;
 
-      particle.position = vec3<f32>(rotated_xyz);
+    //particle.position = vec3<f32>(rotated_xyz);
 
-   // particle.position = vec3f( rand() *  2.0 - 1., rand() *  2.0 - 1.,rand() *  2.0 - 1.) * .09;
+    // particle.position = vec3f( rand() *  2.0 - 1., rand() *  2.0 - 1.,rand() *  2.0 - 1.) * .09;
     
     //particle.velocity = vec3f( rand() *  2.0 - 1., rand() *  2.0 - 1., rand() *  2.0 - 1.);
     particle.velocity = vec3f(0.,0.,0.);

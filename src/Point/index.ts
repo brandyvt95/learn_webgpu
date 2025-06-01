@@ -134,7 +134,7 @@ export class InitPoint {
                     {
                         format: this.presentationFormat,
                         blend: {
-                         /*    color: {
+                            color: {
                                 srcFactor: 'one',
                                 dstFactor: 'one-minus-src-alpha',
                                 operation: 'add',
@@ -143,8 +143,8 @@ export class InitPoint {
                                 srcFactor: 'one',
                                 dstFactor: 'one-minus-src-alpha',
                                 operation: 'add',
-                            }, */
-                              color: {
+                            },
+             /*                  color: {
             srcFactor: 'src-alpha',
             dstFactor: 'one',
             operation: 'add',
@@ -153,7 +153,7 @@ export class InitPoint {
             srcFactor: 'zero',
             dstFactor: 'one',
             operation: 'add',
-          },
+          }, */
                         }
 
                     },
