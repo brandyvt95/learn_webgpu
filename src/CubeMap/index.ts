@@ -15,8 +15,9 @@ https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
 https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
 
 https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexturehttps://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-import basicVertWGSL from '../meshes/basic.vert.wgsl'; */
-import sampleCubemapWGSL from '../meshes/sampleCubemap.frag.wgsl'; 
+*/
+import basicVertWGSL from '../meshes/basic.vert.wgsl';
+import sampleCubemapWGSL from '../meshes/sampleCubemap.frag.wgsl';
 import { GUI } from 'dat.gui';
 import {
     cubeVertexArray,
@@ -75,9 +76,25 @@ export class InitCubeMap {
         gui.add(this.gui, 'w', -10, 10).step(0.1).name('Position W');
     }
     createPipeline() {
-        
+
+        const group0Layout = this.device.createBindGroupLayout({
+            entries: [
+                { binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } }, // uniforms
+                { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },                    // sampler
+                { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: 'cube' } },                   // texture_cube
+            ],
+        });
+
+        const group1Layout = this.device.createBindGroupLayout({
+            entries: [
+                { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } }, // camera_uniforms
+            ],
+        });
+        const pipelineLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [group0Layout, group1Layout],
+        });
         this.pipeline = this.device.createRenderPipeline({
-            layout: 'auto',
+            layout: pipelineLayout,
             vertex: {
                 module: this.device.createShaderModule({
                     code: basicVertWGSL,
@@ -153,7 +170,7 @@ export class InitCubeMap {
             minFilter: 'linear',
         });
 
-       this.uniformBindGroup = this.device.createBindGroup({
+        this.uniformBindGroup = this.device.createBindGroup({
             layout: this.pipeline.getBindGroupLayout(0),
             entries: [
                 {
@@ -196,11 +213,11 @@ export class InitCubeMap {
         renderPass.setBindGroup(0, this.uniformBindGroup);
         if (uniform && uniform.length > 0) {
             for (let i = 0; i < uniform.length; i++) {
-            renderPass.setBindGroup(i + 1, uniform[i]);
+                renderPass.setBindGroup(i + 1, uniform[i]);
             }
         }
         renderPass.draw(cubeVertexCount);
-       
+
 
     }
 }

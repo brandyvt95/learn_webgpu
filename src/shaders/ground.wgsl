@@ -44,9 +44,11 @@ struct ObjectUniforms {
   w : f32
 }
 struct CameraUniforms {
-  modelViewProjectionMatrix : mat4x4f,
-  right : vec3f,
-  up : vec3f
+  modelMatrix : mat4x4<f32>,
+  viewMatrix : mat4x4<f32>,
+  projectionMatrix : mat4x4<f32>,
+  cameraPosition : vec3<f32>,
+  padding : f32, // <- để giữ alignment 16 bytes
 }
 @group(0) @binding(0) var<uniform> obj_uniforms : ObjectUniforms;
 @group(1) @binding(0) var<uniform> camera_uniforms: CameraUniforms;
@@ -56,7 +58,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
   var output: VertexOutput;
   let rotated = rotateX(input.position, -3.15708);
   let offset = vec3<f32>(0.0, obj_uniforms.y, 0.0); 
-  output.Position =  camera_uniforms.modelViewProjectionMatrix *  vec4<f32>(rotated * 5. + offset, 1.0);
+  output.Position = camera_uniforms.projectionMatrix * camera_uniforms.viewMatrix  *  camera_uniforms.modelMatrix *  vec4<f32>(rotated * 5. + offset, 1.0);
   output.vUV = input.uv;
   output.vHeight = 1.;
 

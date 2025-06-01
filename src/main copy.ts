@@ -22,9 +22,7 @@ import { InitCubeMap } from './CubeMap';
 import { OrbitCamera } from './camera/OrbitCamera';
 import { createModelMatrix, updateProjection } from './camera/utils';
 import { animSkinnedGrid, animWhaleSkin, createBoneCollection } from './ModelSkin/utilsBone';
-import { InitModelSkin } from './ModelSkin';
-import { InitFullSceneQuad } from './FullSceneQuad';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
 const MAT4X4_BYTES = 64;
 
 
@@ -75,14 +73,7 @@ const CONFIG_POINT_UBO = {
 }
 async function main() {
 
-  const gui = new GUI();
-  gui.width = 300;
-  const params = {
-    isDisplayEnv: false,
-  };
-  gui.add(params, 'isDisplayEnv').name('Display Environment').onChange(value => {
-    params.isDisplayEnv = value;
-  });
+
 
   const EL_INFO_FPS = document.getElementById("info")
   const canvas = document.querySelector('canvas') as HTMLCanvasElement;
@@ -119,12 +110,7 @@ async function main() {
   //LOAD TEX
   const result = await cropBinToWebGPUTexture(device, '../img/fast_run_vat.bin', CONFIG_VAT.width, CONFIG_VAT.height, columnGroupsVAT)
   const infoTexVATDetail = result.texture;
-const loader = new GLTFLoader();
-let animationsClip = null
-loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
-  animationsClip = gltf.animations;
-  console.log(animationsClip)
-});
+
   const cubemapUrls = [
     '/src/assets/img/cubemap/posx.jpg',
     '/src/assets/img/cubemap/negx.jpg',
@@ -136,20 +122,16 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
 
   const cubemapTexture = await loadCubemapTexture(device, cubemapUrls);
 
-
-  //LOAD MODEL
-  const whaleScene = await fetch('/src/assets/model/whale.glb').then((res) => res.arrayBuffer())
-    .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
   //CAMERA
   const cameraOrbit = new OrbitCamera(canvas);
   cameraOrbit.target = [0, 0, 0]
 
 
 
-  const mat4Size = 64; // 4 * 4 * 4
-  const vec3AlignedSize = 16; // vec3<f32> + padding
+ const mat4Size = 64; // 4 * 4 * 4
+const vec3AlignedSize = 16; // vec3<f32> + padding
 
-  const BUFFER_CAMERA_UNIFORM_SIZE = mat4Size * 3 + vec3AlignedSize; // 192 + 16 = 208
+const BUFFER_CAMERA_UNIFORM_SIZE = mat4Size * 3 + vec3AlignedSize; // 192 + 16 = 208
 
   const BUFFER_CAMERA_UNIFORM = device.createBuffer({
     size: BUFFER_CAMERA_UNIFORM_SIZE,
@@ -174,19 +156,6 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
 
 
   // PASS LIST
-  const sampler = device.createSampler({
-    magFilter: 'nearest',
-    minFilter: 'nearest',
-  });
-
-  const fullSceneQuad = new InitFullSceneQuad({
-    device: device,
-    presentationFormat: presentationFormat,
-    viewport: {
-      width: canvas.width,
-      height: canvas.height
-    }
-  })
   const simUBO = new SimUBO({
     device: device,
     POINT_BUFFER: POINT_BUFFER,
@@ -215,36 +184,16 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
   });
 
 
+
+
+
   const depthTexture = device.createTexture({
     size: [canvas.width, canvas.height],
     format: 'depth24plus',
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
-  const sceneMainTexture = device.createTexture({
-    size: [canvas.width, canvas.height],
-    format: 'bgra8unorm',
-    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
-  });
-  const sceneRenderPassDesc: GPURenderPassDescriptor = {
-    colorAttachments: [{
-      view: sceneMainTexture.createView(),
-      loadOp: 'clear',
-      storeOp: 'store',
-      clearValue: { r: 0, g: 0, b: 0, a: 1 },
-    }],
-    depthStencilAttachment: {
-      view: depthTexture.createView(),
-
-      depthClearValue: 1.0,
-      depthLoadOp: 'clear',
-      depthStoreOp: 'store',
-
-    }
-  };
-
-
-  const PostProcessingPassDescriptor: GPURenderPassDescriptor = {
+  const renderPassDescriptor: GPURenderPassDescriptor = {
     colorAttachments: [
       {
         view: undefined, // Assigned later
@@ -263,15 +212,64 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
     },
   };
 
+  const generalUniformsBuffer = device.createBuffer({
+    size: Uint32Array.BYTES_PER_ELEMENT * 2,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const generalUniformsBGCLuster = createBindGroupCluster(
+    [0],
+    [GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT],
+    ['buffer'],
+    [{ type: 'uniform' }],
+    [[{ buffer: generalUniformsBuffer }]],
+    'General',
+    device
+  );
+  // Same bindGroupLayout as in main file.
+  const nodeUniformsBindGroupLayout = device.createBindGroupLayout({
+    label: 'NodeUniforms.bindGroupLayout',
+    entries: [
+      {
+        binding: 0,
+        buffer: {
+          type: 'uniform',
+        },
+        visibility: GPUShaderStage.VERTEX,
+      },
+    ],
+  });
+  const whaleScene = await fetch('/src/assets/model/whale.glb')
+    .then((res) => res.arrayBuffer())
+    .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
+  whaleScene.meshes[0].buildRenderPipeline(
+    device,
+    gltfWGSL,
+    gltfWGSL,
+    presentationFormat,
+    depthTexture.format,
+    [
+      cameraBGCluster.bindGroupLayout,
+      generalUniformsBGCLuster.bindGroupLayout,
+      nodeUniformsBindGroupLayout,
+      GLTFSkin.skinBindGroupLayout,
+    ]
+  );
 
-  const skinMesh = new InitModelSkin({
-    animationClip:animationsClip,
-    device: device,
-    presentationFormat: presentationFormat,
-    scene: whaleScene,
-    cameraBGCluster: cameraBGCluster,
-    depthTexture: depthTexture
-  })
+  const origMatrices = new Map<number, Mat4>();
+
+  function updateMeshSkin() {
+     const angle = Math.sin(then)
+
+    // Update node matrixes
+    for (const scene of whaleScene.scenes) {
+      scene.root.updateWorldMatrix(device);
+    }
+
+    // Updates skins (we index into skins in the renderer, which is not the best approach but hey)
+    animWhaleSkin(whaleScene.skins[0], angle,origMatrices,whaleScene);
+    // Node 6 should be the only node with a drawable mesh so hopefully this works fine
+    whaleScene.skins[0].update(device, 6, whaleScene.nodes);
+  }
 
 
   function updateUniformGlobal() {
@@ -299,7 +297,7 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
       mvpMatrix.byteLength
     );
 
-    const cameraData = new Float32Array(208 / 4); // = 52 floats // 4 m4 + 1 v3
+   const cameraData = new Float32Array(208 / 4); // = 52 floats // 4 m4 + 1 v3
     // Fill: matrixA (16 floats), matrixB (16 floats), matrixC (16 floats)
     cameraData.set(cameraOrbit.modelMatrix, 0);
     cameraData.set(cameraOrbit.viewMatrix, 16);
@@ -317,14 +315,14 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
     if (coutnFrame > CONFIG_VAT.height) {
       coutnFrame = 0
     }
-
+    updateMeshSkin()
     updateUniformGlobal()
-    skinMesh.updateSkinMesh(then)
+
 
 
     const swapChainTexture = context.getCurrentTexture();
     // prettier-ignore
-    PostProcessingPassDescriptor.colorAttachments[0].view = swapChainTexture.createView();
+    renderPassDescriptor.colorAttachments[0].view = swapChainTexture.createView();
 
     const commandEncoder = device.createCommandEncoder();
     {
@@ -332,42 +330,32 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
       simUBO.draw(computePass)
     }
     {
-      const scenePass = commandEncoder.beginRenderPass(sceneRenderPassDesc);
-
-      if (params.isDisplayEnv) {
-        enviromentCube.draw({
-          renderPass: scenePass,
-          uniform: [
-            cameraBGCluster.bindGroups[0]
-          ]
-        });
+      const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
+      // enviromentCube.draw({
+      //   renderPass: renderPass,
+      //   uniform: [
+      //     cameraBGCluster.bindGroups[0]
+      //   ]
+      // });
+      for (const scene of whaleScene.scenes) {
+        scene.root.renderDrawables(renderPass, [
+          cameraBGCluster.bindGroups[0],
+          generalUniformsBGCLuster.bindGroups[0],
+        ]);
       }
-
-      skinMesh.draw({
-        renderPass: scenePass,
-        cameraBGCluster: cameraBGCluster
-      });
       ground.draw({
-        renderPass: scenePass,
+        renderPass: renderPass,
         uniform: [
           cameraBGCluster.bindGroups[0]
         ]
       });
-      point.draw({
-        renderPass: scenePass,
-        uniform: [
-          cameraBGCluster.bindGroups[0]
-        ]
-      });
-      scenePass.end();
-
-      const PostProcessingPass = commandEncoder.beginRenderPass(PostProcessingPassDescriptor);
-      fullSceneQuad.updateBindGroup({
-        textureView: sceneMainTexture.createView(),
-        sampler,
-      });
-      fullSceneQuad.draw({ renderPass: PostProcessingPass })
-      PostProcessingPass.end();
+      // point.draw({
+      //   renderPass: renderPass,
+      //   uniform: [
+      //     cameraBGCluster.bindGroups[0]
+      //   ]
+      // });
+      renderPass.end();
     }
 
     device.queue.submit([commandEncoder.finish()]);

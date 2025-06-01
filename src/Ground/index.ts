@@ -26,7 +26,7 @@ export class InitGround {
         this.presentationFormat = presentationFormat
         this.gui = {
             x:0,
-            y:-1,
+            y:-.2,
             z:0,
             w:0
         }
@@ -39,7 +39,7 @@ export class InitGround {
 
     createGUI() {
         const gui = new GUI();
-        gui.width = 325;
+        gui.width = 200;
         gui.add(this.gui, 'x', -10, 10).step(0.1).name('Position X');
         gui.add(this.gui, 'y', -10, 10).step(0.1).name('Position Y');
         gui.add(this.gui, 'z', -10, 10).step(0.1).name('Position Z');

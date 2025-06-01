@@ -414,9 +414,12 @@ export class GLTFPrimitive {
     };
 
     this.renderPipeline = device.createRenderPipeline(rpDescript);
+
   }
 
   render(renderPassEncoder: GPURenderPassEncoder, bindGroups: GPUBindGroup[]) {
+    
+    if(!this.renderPipeline) return
     renderPassEncoder.setPipeline(this.renderPipeline);
     bindGroups.forEach((bg, idx) => {
       renderPassEncoder.setBindGroup(idx, bg);

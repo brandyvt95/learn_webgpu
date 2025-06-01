@@ -226,11 +226,12 @@ struct PointUniforms {
   pointColor: vec3<f32>,
 }
 struct CameraUniforms {
-  modelViewProjectionMatrix : mat4x4f,
-  right : vec3f,
-  up : vec3f
+  modelMatrix : mat4x4<f32>,
+  viewMatrix : mat4x4<f32>,
+  projectionMatrix : mat4x4<f32>,
+  cameraPosition : vec3<f32>,
+  padding : f32, // <- để giữ alignment 16 bytes
 }
-
 struct VertexInput {
   @location(0) position : vec3f,
   @location(1) color : vec4f,
@@ -250,10 +251,22 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
-  var quad_pos = mat2x3f(camera_uniforms.right, camera_uniforms.up) * in.quad_pos;
+let view = camera_uniforms.viewMatrix;
+
+let right = vec3f(camera_uniforms.viewMatrix[0][0],
+                  camera_uniforms.viewMatrix[1][0],
+                  camera_uniforms.viewMatrix[2][0]);
+
+let up = vec3f(camera_uniforms.viewMatrix[0][1],
+               camera_uniforms.viewMatrix[1][1],
+               camera_uniforms.viewMatrix[2][1]);
+
+
+
+  var quad_pos = mat2x3f(right,up) * in.quad_pos;
   var position = in.position + quad_pos * 0.0091 * point_uniforms.pointSize;
   var out : VertexOutput;
-  out.position = camera_uniforms.modelViewProjectionMatrix * vec4f(position, 1.0);
+  out.position =  camera_uniforms.projectionMatrix * camera_uniforms.viewMatrix  *  camera_uniforms.modelMatrix  * vec4f(position, 1.0);
   //out.color = vec4f(point_uniforms.pointColor.xyz,1.);
     out.color = in.color * vec4f(point_uniforms.pointColor.xyz,1.);
   out.quad_pos = in.quad_pos;

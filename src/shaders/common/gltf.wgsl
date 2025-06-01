@@ -7,11 +7,13 @@ struct VertexOutput {
   @location(1) joints: vec4f,
   @location(2) weights: vec4f,
 }
-
+ 
 struct CameraUniforms {
-  proj_matrix: mat4x4f,
-  view_matrix: mat4x4f,
-  model_matrix: mat4x4f,
+  modelMatrix : mat4x4<f32>,
+  viewMatrix : mat4x4<f32>,
+  projectionMatrix : mat4x4<f32>,
+  cameraPosition : vec3<f32>,
+  padding : f32, // <- để giữ alignment 16 bytes
 }
 
 struct GeneralUniforms {
@@ -46,17 +48,23 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
   // Position of the vertex relative to our world
   let world_position = vec4f(input.position.x, input.position.y, input.position.z, 1.0);
   // Vertex position with model rotation, skinning, and the mesh's node transformation applied.
-  let skinned_position = camera_uniforms.model_matrix * skin_matrix * node_uniforms.world_matrix * world_position;
+  let skinned_position = camera_uniforms.modelMatrix * skin_matrix * node_uniforms.world_matrix * world_position;
   // Vertex position with only the model rotation applied.
-  let rotated_position = camera_uniforms.model_matrix * world_position;
+  let rotated_position = camera_uniforms.modelMatrix * world_position;
   // Determine which position to used based on whether skinMode is turnd on or off.
   let transformed_position = select(
     rotated_position,
     skinned_position,
     general_uniforms.skin_mode == 0
   );
-  // Apply the camera and projection matrix transformations to our transformed position;
-  output.Position = camera_uniforms.proj_matrix * camera_uniforms.view_matrix * transformed_position;
+  let scaleFactor = .01; // ví dụ scale 2 lần
+
+// Sau khi chọn vị trí transform (đã hoặc chưa skinning)
+let transformed_position_scaled = vec4<f32>(transformed_position.xyz * scaleFactor, transformed_position.w);
+
+// Áp dụng view và projection
+output.Position = camera_uniforms.projectionMatrix * camera_uniforms.viewMatrix * transformed_position_scaled;
+
   output.normal = input.normal;
   // Convert u32 joint data to f32s to prevent flat interpolation error.
   output.joints = vec4f(f32(input.joints[0]), f32(input.joints[1]), f32(input.joints[2]), f32(input.joints[3]));
