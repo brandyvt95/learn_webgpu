@@ -35,6 +35,7 @@ import { SceneObject } from './scene/object.js';
 import { RenderGeometry } from './geometry/geometry.js';
 import { RenderSkin } from './geometry/skin.js';
 import { AnimationTarget } from './animation/animation.js';
+import { InitPoint1X } from './Point1PX/index.js';
 
 
 export interface Renderables {
@@ -255,6 +256,16 @@ async function main() {
     COMMON_PIPLINE_STATE_DESC: COMMON_PIPLINE_STATE_DESC
 
   })
+  const pointX = new InitPoint1X({
+    device: device,
+    presentationFormat: presentationFormat,
+    POINT_BUFFER: POINT_BUFFER,
+    CONFIG_POINT_UBO: CONFIG_POINT_UBO,
+    // presentationFormat: presentationFormat,
+    COMMON_PIPLINE_STATE_DESC: COMMON_PIPLINE_STATE_DESC
+
+  })
+
   const ground = new InitGround({
     device: device,
     presentationFormat: presentationFormat,
@@ -340,27 +351,27 @@ async function main() {
 
   //LOAD MODEL
   const urlModel = '/src/assets/model/dragon_2.glb'
-  const loaderTHREE = new GLTFLoader();
-  let animationsClip = null
-  let skinMesh = null
-  loaderTHREE.load(urlModel, (gltf) => {
-    animationsClip = gltf.animations;
-    console.log(animationsClip)
-  });
-  const sceneFormat = await fetch(urlModel).then((res) => res.arrayBuffer())
-    .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
+  // const loaderTHREE = new GLTFLoader();
+  // let animationsClip = null
+  // let skinMesh = null
+  // loaderTHREE.load(urlModel, (gltf) => {
+  //   animationsClip = gltf.animations;
+  //   console.log(animationsClip)
+  // });
+  // const sceneFormat = await fetch(urlModel).then((res) => res.arrayBuffer())
+  //   .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
 
-  if (animationsClip && sceneFormat) {
-    skinMesh = new InitModelSkin({
-      animationClip: animationsClip,
-      device: device,
-      presentationFormat: presentationFormat,
-      scene: sceneFormat,
-      cameraBGCluster: cameraBGCluster,
-      depthTexture: depthTexture
-    })
+  // if (animationsClip && sceneFormat) {
+  //   skinMesh = new InitModelSkin({
+  //     animationClip: animationsClip,
+  //     device: device,
+  //     presentationFormat: presentationFormat,
+  //     scene: sceneFormat,
+  //     cameraBGCluster: cameraBGCluster,
+  //     depthTexture: depthTexture
+  //   })
 
-  }
+  // }
 
   //LOAD MODE V2
   let skinMesh2
@@ -393,9 +404,11 @@ async function main() {
         device: device,
         presentationFormat: presentationFormat,
         cameraBGCluster: cameraBGCluster,
+        skinBindGroup: result.skinBindGroup,
         gltf: result.core,
         scene: result.scene,
-        COMMON_PIPLINE_STATE_DESC: COMMON_PIPLINE_STATE_DESC
+        COMMON_PIPLINE_STATE_DESC: COMMON_PIPLINE_STATE_DESC,
+        skinBindGroupLayout: result.skinBindGroupLayout
       })
     });
   }
@@ -455,8 +468,8 @@ async function main() {
 
     const commandEncoder = device.createCommandEncoder();
     {
-      // const computePass = commandEncoder.beginComputePass();
-      // simUBO.draw(computePass)
+      const computePass = commandEncoder.beginComputePass();
+      simUBO.draw(computePass)
     }
     {
       const scenePass = commandEncoder.beginRenderPass(sceneRenderPassDesc);
@@ -469,7 +482,7 @@ async function main() {
       //     ]
       //   });
       // }
-   
+
       // if (skinMesh) {
       //   skinMesh.draw({
       //     renderPass: scenePass,
@@ -485,37 +498,48 @@ async function main() {
           ]
         });
       }
-      // point.draw({
-      //   renderPass: scenePass,
-      //   uniform: [
-      //     cameraBGCluster.bindGroups[0]
-      //   ]
-      // });
-        const renderables = {
-      meshes: [],
-    };
-    sceneRoot.getRenderables(renderables);
-    const skinnedMeshes: SceneMesh[] = [];
- 
-    for (const mesh of renderables.meshes) {
-      // TODO: A single skin COULD be used for multiple meshes, which would make this redundant.
-      if (mesh.skin) {
-        console.log("yo")
-        skinnedMeshes.push(mesh);
-        mesh.skin.skin.updateJoints(device, mesh.skin.animationTarget);
-      }
-    }
-    if (skinnedMeshes) {
-      for (const mesh of skinnedMeshes) {
-        mesh.transform = IDENTITY_MATRIX;
-        mesh.geometry = skinMesh2.skinGeometry(scenePass, mesh.geometry, mesh.skin.skin);
-        mesh.skin = null;
-      }
-  
-    }
+      point.draw({
+        renderPass: scenePass,
+        uniform: [
+          cameraBGCluster.bindGroups[0]
+        ]
+      });
 
 
-       if (skinMesh2) {
+      // if(pointX) {
+      //    pointX.draw({
+      //     renderPass: scenePass,
+      //      uniform: [
+      //       cameraBGCluster.bindGroups[0]
+      //     ]
+      //   });
+      // }
+
+     
+
+      if (skinMesh2) {
+         const renderables = {
+          meshes: [],
+        };
+        sceneRoot.getRenderables(renderables);
+        const skinnedMeshes: SceneMesh[] = [];
+
+        for (const mesh of renderables.meshes) {
+          // TODO: A single skin COULD be used for multiple meshes, which would make this redundant.
+          if (mesh.skin) {
+
+            skinnedMeshes.push(mesh);
+            mesh.skin.skin.updateJoints(device, mesh.skin.animationTarget);
+          }
+        }
+        if (skinnedMeshes) {
+          for (const mesh of skinnedMeshes) {
+            mesh.transform = IDENTITY_MATRIX;
+            mesh.geometry = skinMesh2.skinGeometry(scenePass, mesh.geometry, mesh.skin.skin);
+            mesh.skin = null;
+          }
+
+        }
         skinMesh2.draw({
           renderPass: scenePass,
           uniform: [
@@ -551,7 +575,7 @@ async function main() {
     }
 
 
-  
+
     now *= 0.001;
     const deltaTime = now - then;
     then = now;

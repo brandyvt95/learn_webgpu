@@ -29,7 +29,7 @@ export class RenderSkin {
     device.queue.writeBuffer(this.jointBuffer, 0, this.#jointArray);
   }
 
-  clone(): RenderSkin {
-    return this.renderer.cloneSkin(this);
-  }
+  // clone(): RenderSkin {
+  //   return this.renderer.cloneSkin(this);
+  // }
 }

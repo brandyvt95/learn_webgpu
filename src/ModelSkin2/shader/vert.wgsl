@@ -11,10 +11,13 @@ struct CameraUniforms {
 }
 @group(0) @binding(0)var<uniform> uniforms : Uniforms;
 @group(1) @binding(0) var<uniform> camera_uniforms: CameraUniforms;
-@group(2) @binding(0) var<storage> inJoints: array<u32>;
+@group(2) @binding(0) var<storage, read> inverseBindMatrices: array<mat4x4<f32>>;
+@group(2) @binding(1) var<storage, read> jointMatrices: array<mat4x4<f32>>;
+
 struct VertexInput {
   @location(0) position : vec3<f32>,
   @location(1) normal : vec3<f32>,
+
 };
 
 struct VertexOutput {
@@ -23,9 +26,20 @@ struct VertexOutput {
 };
 
 @vertex
-fn main(input : VertexInput) -> VertexOutput {
+fn main(input: VertexInput, @builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
   var output : VertexOutput;
-  output.position =  camera_uniforms.projectionMatrix * camera_uniforms.viewMatrix  *  camera_uniforms.modelMatrix *  vec4<f32>(input.position, 1.0);
+var pos = vec4<f32>(input.position, 1.0);
+  var skinnedPos = vec4<f32>(0.0);
+
+  for (var i = 0u; i < 4u; i = i + 1u) {
+    // let jointIndex = input.skinIndices[i];
+    // let weight = input.skinWeights[i];
+    skinnedPos += jointMatrices[vertexIndex] * pos ;
+  }    
+      // ma trận * vector4
+let finalPos = camera_uniforms.modelMatrix * skinnedPos;
+
+  output.position =  camera_uniforms.projectionMatrix * camera_uniforms.viewMatrix  * finalPos ;
   output.vNormal = input.normal;
   return output;
 }

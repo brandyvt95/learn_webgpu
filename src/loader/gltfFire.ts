@@ -71,10 +71,13 @@ export interface GltfResult {
   scene: SceneObject,
   animations: Animation[],
   core:any
+  skinBindGroup:any
+  skinBindGroupLayout:any
 }
 
 export class GltfLoader {
   #hoardLoader: WebGpuGltfLoader;
+  skinBindGroup:any
   skinBindGroupLayout:any
   renderGeometryManager:any
   gltf:any
@@ -133,7 +136,7 @@ export class GltfLoader {
     });
 
     // Create a bind group for both the inverse bind matrix buffer and the joint buffer.
-    const skinBindGroup = this.renderer.device.createBindGroup({
+    this.skinBindGroup = this.renderer.device.createBindGroup({
       label: 'skin bind group',
       layout: this.skinBindGroupLayout,
       entries: [{
@@ -145,7 +148,7 @@ export class GltfLoader {
       }]
     });
 
-    return new RenderSkin(this as any, skinBindGroup, desc.joints, invBindBuffer, jointBuffer);
+    return new RenderSkin(this as any, this.skinBindGroup, desc.joints, invBindBuffer, jointBuffer);
   }
 
   async loadFromUrl(url: string): Promise<GltfResult> {
@@ -305,6 +308,7 @@ export class GltfLoader {
     const skins = [];
     if (gltf.skins) {
       for (const skin of (gltf.skins as any[])) {
+        console.log(gltf.skins)
         // TODO: May not have an inverseBindMatrices, if so should fill with identity matrices.
         const invBindMatrixAccessor = gltf.accessors[skin.inverseBindMatrices];
         const inverseBindMatrices = getAccessorTypedArray(invBindMatrixAccessor) as Float32Array;
@@ -340,7 +344,7 @@ export class GltfLoader {
           geometry: meshes[node.mesh],
         }));
       } else {
-        console.log(transform)
+   
         sceneNodes.push(new SceneObject({
           transform
         }));
@@ -393,7 +397,9 @@ export class GltfLoader {
     return {
       core:this.gltf,
       scene: sceneRoot,
-      animations
+      animations,
+      skinBindGroup:this.skinBindGroup,
+      skinBindGroupLayout:this.skinBindGroupLayout
     };
   }
 }

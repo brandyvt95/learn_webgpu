@@ -15,6 +15,8 @@ interface ModelSkin2Options {
   gltf: any;
   COMMON_PIPLINE_STATE_DESC: any
   scene: any
+  skinBindGroup:any
+  skinBindGroupLayout:any
 }
 const GL = WebGLRenderingContext;
 
@@ -148,22 +150,22 @@ export class InitModelSkin2 {
   #skinnedGeometry: WeakMap<RenderGeometry, SkinnedGeometry> = new WeakMap();
   #skinningPipelines: Map<number, GPUComputePipeline> = new Map();
   skinBindGroupLayout: any
-
+skinBindGroup:any
 
   geometry: any
   skin: any
 
-  constructor({ device, presentationFormat, scene, COMMON_PIPLINE_STATE_DESC, gltf }: ModelSkin2Options) {
+  constructor({ device, presentationFormat, scene, COMMON_PIPLINE_STATE_DESC, gltf,skinBindGroup,skinBindGroupLayout }: ModelSkin2Options) {
     this.device = device;
     this.gltf = gltf;
     this.scene = scene
+    this.skinBindGroup = skinBindGroup
+    this.skinBindGroupLayout = skinBindGroupLayout
     this.COMMON_PIPLINE_STATE_DESC = COMMON_PIPLINE_STATE_DESC
     this.checkInfo();
     this.createMesh();
     this.createUniform();
     this.createPipeline(presentationFormat);
-
-    this.checkInfoAnim()
 
   }
 
@@ -261,65 +263,64 @@ export class InitModelSkin2 {
         buffer: { type: 'uniform' }
       }]
     });
-     const skinBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        buffer: { type: 'uniform' }
-      }]
-    });
+
     const pipelineLayout = this.device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout, cameraBindGroupLayout,skinBindGroupLayout],
+      bindGroupLayouts: [bindGroupLayout, cameraBindGroupLayout,this.skinBindGroupLayout],
     });
 
-    // Mô tả vertex buffers theo attrName (ví dụ POSITION và NORMAL)
-    // Bạn phải điều chỉnh cho đúng attr và format trong glTF (ví dụ vec3 float32)
-    const vertexBuffers: GPUVertexBufferLayout[] = [
-      {
-        arrayStride: 12, // 3 * 4 bytes (float32 vec3)
-        attributes: [
-          {
-            shaderLocation: 0,
-            format: "float32x3",
-            offset: 0,
-          },
-        ],
-        stepMode: "vertex",
-      },
-      {
-        arrayStride: 12,
-        attributes: [
-          {
-            shaderLocation: 1,
-            format: "float32x3",
-            offset: 0,
-          },
-        ],
-        stepMode: "vertex",
-      },
-    ];
+  
 const vertexBuffers2: GPUVertexBufferLayout[] = [
-  // POSITION
+  // POSITION - location 0
   {
-    arrayStride: 12,
+    arrayStride: 12, // 3 floats * 4 bytes
     attributes: [{ shaderLocation: 0, format: "float32x3", offset: 0 }],
   },
-  // NORMAL
+  // NORMAL - location 1  
   {
-    arrayStride: 12,
+    arrayStride: 12, // 3 floats * 4 bytes
     attributes: [{ shaderLocation: 1, format: "float32x3", offset: 0 }],
   },
-  // UV
+  // TEXCOORD - location 2
   {
-    arrayStride: 8,
+    arrayStride: 8, // 2 floats * 4 bytes
     attributes: [{ shaderLocation: 2, format: "float32x2", offset: 0 }],
   },
-  // Tangent
+  // JOINTS - location 3 (THAY ĐỔI: không phải tangent nữa)
   {
-    arrayStride: 16,
-    attributes: [{ shaderLocation: 3, format: "float32x4", offset: 0 }],
+    arrayStride: 16, // 4 values * 4 bytes
+    attributes: [{ 
+      shaderLocation: 3, 
+      format: "uint32x4", // hoặc "float32x4" nếu joints là float
+      offset: 0 
+    }],
   },
+  // WEIGHTS - location 4 (THÊM MỚI)
+  {
+    arrayStride: 16, // 4 floats * 4 bytes
+    attributes: [{ 
+      shaderLocation: 4, 
+      format: "float32x4", 
+      offset: 0 
+    }],
+  },
+  {
+    arrayStride: 16, // 1 floats * 4 bytes
+    attributes: [{ 
+      shaderLocation: 5, 
+      format: "float32x4", 
+      offset: 0 
+    }],
+  }
 ];
+const jointArray = new Uint32Array([222,221,220,219,153,152,151,149,148,146,144,142,59,58,57,56,55,52,43,38,33,24,23,22,9,2,3,8,7,6,5,4,10,11,12,13,14,15,16,17,18,19,20,21,25,26,27,28,29,30,31,32,34,35,36,37,39,40,41,42,44,45,46,47,48,49,50,51,53,54,100,99,97,92,91,62,61,60,65,64,63,68,67,66,76,71,70,69,75,74,73,72,84,79,78,77,83,82,81,80,90,87,86,85,89,88,96,94,93,95,98,141,140,138,133,132,103,102,101,106,105,104,109,108,107,117,112,111,110,116,115,114,113,125,120,119,118,124,123,122,121,131,128,127,126,130,129,137,135,134,136,139,143,145,147,150,218,165,164,163,162,160,155,154,157,156,159,158,161,177,176,175,174,172,167,166,169,168,171,170,173,214,212,210,209,208,207,206,205,204,203,202,201,198,196,194,192,191,190,189,188,187,186,185,184,183,182,181,180,179,178,193,195,197,199,200,211,213,215,216,217]);
+
+this.jointBuffer = this.device.createBuffer({
+  size: jointArray.byteLength,
+  usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  mappedAtCreation: true,
+});
+new Uint32Array(this.jointBuffer.getMappedRange()).set(jointArray);
+this.jointBuffer.unmap();
 
     this.pipeline = this.device.createRenderPipeline({
       layout: pipelineLayout,
@@ -346,98 +347,20 @@ const vertexBuffers2: GPUVertexBufferLayout[] = [
     // Cập nhật uniform buffer với matrix transform mới
     this.device.queue.writeBuffer(this.uniformBuffer!, 0, matrixData.buffer);
   }
-  checkInfoAnim() {
-
-    function getAccessorTypedArray(accessor: any, gltf: any): ArrayBufferView {
-      const bufferView = gltf.bufferViews[accessor.bufferView];
-      const byteArray = bufferView.byteArray;
-
-      // TODO: Does this need to take into account non-tightly packed buffers?
-
-      const typedArrayOffset = bufferView.byteOffset + accessor.byteOffset;
-      const elementCount = accessor.extras.componentCount * accessor.count;
-      const arrayType = getComponentTypeArrayConstructor(accessor.componentType);
-      return new arrayType(byteArray.buffer, typedArrayOffset, elementCount);
-    }
-    const animations = [];
-    if (this.gltf.animations) {
-      for (const animation of (this.gltf.animations as any[])) {
-
-        const channels: AnimationChannel[] = [];
-        for (const channel of animation.channels) {
-          const channelSampler = animation.samplers[channel.sampler];
-
-          let samplerType: any;
-          switch (channelSampler.interpolation) {
-            case 'STEP': samplerType = StepAnimationSampler; break;
-            case 'CUBICSPLINE ': // TODO
-            case 'LINEAR': {
-              if (channel.target.path == 'rotation') {
-                samplerType = SphericalLinearAnimationSampler; break;
-              } else {
-                samplerType = LinearAnimationSampler; break;
-              }
-            }
-            default: throw new Error(`Unknown channel interpolation type: ${channelSampler.interpolation}`);
-          }
-
-          const inputAccessor = this.gltf.accessors[channelSampler.input];
-          const outputAccessor = this.gltf.accessors[channelSampler.output];
-
-          const sampler = new samplerType(
-            getAccessorTypedArray(inputAccessor, this.gltf),
-            getAccessorTypedArray(outputAccessor, this.gltf),
-            outputAccessor.extras.componentCount
-          );
-          channels.push(new AnimationChannel(channel.target.node, channel.target.path, sampler));
-        }
-
-        animations.push(new Animation(animation.name || `Animation_${animations.length}`, channels));
-      }
-      console.log(animations)
-    }
-
-
-
-
-    const sceneNodes = [];
-
-    // Two passes over the nodes. First to construct the node objects.
-    for (const node of (this.gltf.nodes as any[])) {
-      let transform: any;
-      if (node.matrix) {
-        transform = new MatrixTransform(node.matrix);
-      } else if (node.translation || node.rotation || node.scale) {
-        transform = new Transform({
-          translation: node.translation,
-          rotation: node.rotation,
-          scale: node.scale
-        });
-      }
-
-      if (node.mesh !== undefined) {
-        sceneNodes.push(new Mesh({
-          transform,
-          geometry: null,
-        }));
-      } else {
-
-        sceneNodes.push(new SceneObject({
-          transform
-        }));
-      }
-    }
-    console.log("sceneNodes on gltf.ts", sceneNodes)
-    const animationTarget = new AnimationTarget(sceneNodes);
-
-
-  }
-
+ 
 
 
   skinGeometry(renderPass: GPURenderPassEncoder, geometry: RenderGeometry, skin: RenderSkin): any {
     this.geometry = geometry
-    this.skin = skin
+    
+    if(!this.skin) {
+      this.skin = skin
+    }
+  // Debug vertex buffers
+  // console.log('Vertex buffers:', geometry.vertexBuffers);
+  // geometry.vertexBuffers.forEach((vb, index) => {
+  //   console.log(`Buffer ${index}:`, vb);
+  // });
   }
 
 
@@ -449,20 +372,23 @@ const vertexBuffers2: GPUVertexBufferLayout[] = [
     for (let i = 0; i < uniform.length; i++) {
       renderPass.setBindGroup(i + 1, uniform[i]);
     }
-    renderPass.setBindGroup(2, this.skin.bindGroup);
+    
+   renderPass.setBindGroup(2, this.skin.bindGroup);
     // Set vertex buffers theo thứ tự location trong shader
     // Ở ví dụ này giả sử:
     // location 0 = POSITION
     // location 1 = NORMAL
-
+    
     renderPass.setVertexBuffer(0, this.geometry.vertexBuffers[0].buffer);
-    renderPass.setVertexBuffer(1, this.geometry.vertexBuffers[2].buffer);
+    renderPass.setVertexBuffer(1, this.geometry.vertexBuffers[5].buffer);
     renderPass.setVertexBuffer(2, this.geometry.vertexBuffers[2].buffer);
     renderPass.setVertexBuffer(3, this.geometry.vertexBuffers[3].buffer);
-    renderPass.setVertexBuffer(4, this.geometry.vertexBuffers[4].buffer);
+    renderPass.setVertexBuffer(4, this.geometry.vertexBuffers[3].buffer);
     renderPass.setVertexBuffer(5, this.geometry.vertexBuffers[5].buffer);
 
-    renderPass.setIndexBuffer(this.indexBuffer, "uint16");
-    renderPass.drawIndexed(this.indexCount);
+   renderPass.setVertexBuffer(6, this.jointBuffer);
+
+    renderPass.setIndexBuffer(this.geometry.indexBuffer.buffer, "uint16");
+    renderPass.drawIndexed(this.geometry.drawCount);
   }
 }
