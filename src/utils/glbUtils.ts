@@ -752,10 +752,12 @@ export class GLTFSkin {
       inverseBindMatricesAccessor.view.view.byteLength / 4
     );
     this.joints = joints;
+    
     const skinGPUBufferUsage: GPUBufferDescriptor = {
       size: Float32Array.BYTES_PER_ELEMENT * 16 * joints.length,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     };
+    console.log('skinGPUBufferUsage',skinGPUBufferUsage)
     this.jointMatricesUniformBuffer = device.createBuffer(skinGPUBufferUsage);
     this.inverseBindMatricesUniformBuffer =
       device.createBuffer(skinGPUBufferUsage);

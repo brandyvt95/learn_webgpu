@@ -24,7 +24,7 @@ export class OrbitCamera {
   public far: number = 100;
 
   
-  private distance_: Float32Array = vec3.fromValues(0, 0, 1);
+  private distance_: Float32Array = vec3.fromValues(0, 0, 5);
   private target_: Float32Array = vec3.create();
   private viewMat_: Float32Array = mat4.create();
   private cameraMat_: Float32Array = mat4.create();
@@ -74,7 +74,7 @@ export class OrbitCamera {
     };
 
     const wheelCallback = (event: WheelEvent): void => {
-      this.distance = this.distance_[2] + (event.deltaY * this.distanceStep * 0.3);
+      this.distance = this.distance_[2] + (event.deltaY * this.distanceStep * 4.3);
       event.preventDefault();
     };
 

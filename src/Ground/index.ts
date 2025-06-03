@@ -4,7 +4,8 @@ import { GUI } from 'dat.gui';
 interface GroundOptions {
     device: GPUDevice;
     presentationFormat: GPUTextureFormat;
-    cameraBuffer: any
+    cameraBuffer: any,
+    COMMON_PIPLINE_STATE_DESC:any
 }
 
 export class InitGround {
@@ -18,8 +19,10 @@ export class InitGround {
     presentationFormat: any
     cameraBuffer: any
     gui:any
-    constructor({ device, presentationFormat, cameraBuffer }: GroundOptions) {
+    COMMON_PIPLINE_STATE_DESC:any
+    constructor({ device, presentationFormat, cameraBuffer,COMMON_PIPLINE_STATE_DESC }: GroundOptions) {
         this.device = device;
+        this.COMMON_PIPLINE_STATE_DESC = COMMON_PIPLINE_STATE_DESC
         this.cameraBuffer = cameraBuffer
         this.uniformBindGroup = null;
         this.uniformBuffer = null
@@ -88,11 +91,7 @@ export class InitGround {
                 cullMode: 'none',
 
             },
-            depthStencil: {
-                depthWriteEnabled: true,
-                depthCompare: 'less',
-                format: 'depth24plus',
-            },
+            ...this.COMMON_PIPLINE_STATE_DESC
         } as any);
     }
 
@@ -163,7 +162,7 @@ export class InitGround {
 
         if (uniform && uniform.length > 0) {
             for (let i = 0; i < uniform.length; i++) {
-            renderPass.setBindGroup(i + 1, uniform[i]);
+            renderPass.setBindGroup(1, uniform[i]);
             }
         }
         renderPass.setVertexBuffer(0, this.vertexBuffer);

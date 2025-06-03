@@ -6,6 +6,7 @@ interface PointOptions {
     presentationFormat: GPUTextureFormat;
     POINT_BUFFER: any;
     CONFIG_POINT_UBO: any;
+    COMMON_PIPLINE_STATE_DESC: any
 }
 
 export class InitPoint {
@@ -25,17 +26,20 @@ export class InitPoint {
     uniformBindGroup: any;
     CONFIG_POINT_UBO: any;
     quadVertexBuffer: any
-    particlesBuffer: any
+    POINT_BUFFER: any
     presentationFormat: any
     gui: any
-    constructor({ device, POINT_BUFFER, CONFIG_POINT_UBO, presentationFormat }: PointOptions) {
+
+    COMMON_PIPLINE_STATE_DESC: any
+    constructor({ device, POINT_BUFFER, CONFIG_POINT_UBO, presentationFormat,COMMON_PIPLINE_STATE_DESC }: PointOptions) {
         this.device = device;
-        this.particlesBuffer = POINT_BUFFER
+        this.COMMON_PIPLINE_STATE_DESC = COMMON_PIPLINE_STATE_DESC
+        this.POINT_BUFFER = POINT_BUFFER
         this.CONFIG_POINT_UBO = CONFIG_POINT_UBO
         this.numParticles = this.CONFIG_POINT_UBO.numParticles
         this.particlePositionOffset = this.CONFIG_POINT_UBO.particlePositionOffset
         this.particleColorOffset = this.CONFIG_POINT_UBO.particleColorOffset
- this.particleExtraOffset = this.CONFIG_POINT_UBO.particleExtraOffset
+        this.particleExtraOffset = this.CONFIG_POINT_UBO.particleExtraOffset
         
         this.particleInstanceByteSize = this.CONFIG_POINT_UBO.particleInstanceByteSize
         this.presentationFormat = presentationFormat
@@ -163,11 +167,7 @@ export class InitPoint {
                 topology: 'triangle-list',
             },
 
-            depthStencil: {
-                depthWriteEnabled: false,
-                depthCompare: 'less',
-                format: 'depth24plus',
-            },
+            ...this.COMMON_PIPLINE_STATE_DESC
         });
     }
     creatUniform() {
@@ -226,7 +226,7 @@ export class InitPoint {
                 renderPass.setBindGroup(i + 1, uniform[i]);
             }
         }
-        renderPass.setVertexBuffer(0, this.particlesBuffer);
+        renderPass.setVertexBuffer(0, this.POINT_BUFFER);
         renderPass.setVertexBuffer(1, this.quadVertexBuffer);
         renderPass.draw(6, this.numParticles, 0, 0);
     }

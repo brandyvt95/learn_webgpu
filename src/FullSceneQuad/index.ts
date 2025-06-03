@@ -1,5 +1,5 @@
 import fullSceneQuadWGSL from '../shaders/common/fullSceneQuad.wgsl';
-
+//import fullSceneQuadWGSL from '../shaders/postprocessing/sample.wgsl';
 interface GroundOptions {
     device: GPUDevice;
     presentationFormat: GPUTextureFormat;
@@ -47,6 +47,7 @@ export class InitFullSceneQuad {
                 depthWriteEnabled: false,
                 depthCompare: 'always',
             },
+            
         });
     }
     createUnfirom() {

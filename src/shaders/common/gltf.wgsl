@@ -48,22 +48,25 @@ fn vertexMain(input: VertexInput) -> VertexOutput {
   // Position of the vertex relative to our world
   let world_position = vec4f(input.position.x, input.position.y, input.position.z, 1.0);
   // Vertex position with model rotation, skinning, and the mesh's node transformation applied.
-  let skinned_position = camera_uniforms.modelMatrix * skin_matrix * node_uniforms.world_matrix * world_position;
+  let skinned_position = camera_uniforms.modelMatrix  * node_uniforms.world_matrix * skin_matrix * world_position;
   // Vertex position with only the model rotation applied.
   let rotated_position = camera_uniforms.modelMatrix * world_position;
+
+  let skinned_pos = skin_matrix * world_position;
+  let node_pos = node_uniforms.world_matrix * skinned_pos;
   // Determine which position to used based on whether skinMode is turnd on or off.
   let transformed_position = select(
     rotated_position,
     skinned_position,
     general_uniforms.skin_mode == 0
   );
-  let scaleFactor = .01; // ví dụ scale 2 lần
+  let scaleFactor = .1; // ví dụ scale 2 lần
 
 // Sau khi chọn vị trí transform (đã hoặc chưa skinning)
 let transformed_position_scaled = vec4<f32>(transformed_position.xyz * scaleFactor, transformed_position.w);
 
 // Áp dụng view và projection
-output.Position = camera_uniforms.projectionMatrix * camera_uniforms.viewMatrix * transformed_position_scaled;
+output.Position = camera_uniforms.projectionMatrix * camera_uniforms.viewMatrix * skinned_position;
 
   output.normal = input.normal;
   // Convert u32 joint data to f32s to prevent flat interpolation error.

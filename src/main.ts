@@ -25,9 +25,30 @@ import { animSkinnedGrid, animWhaleSkin, createBoneCollection } from './ModelSki
 import { InitModelSkin } from './ModelSkin';
 import { InitFullSceneQuad } from './FullSceneQuad';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-const MAT4X4_BYTES = 64;
+
+import { WebGpuGltfLoader } from './third-party/hoard-gpu/dist/gltf/webgpu-gltf-loader.js'
+import { WebGpuTextureLoader } from './third-party/hoard-gpu/dist/texture/webgpu/webgpu-texture-loader.js'
+import { ComputeAABB } from './third-party/hoard-gpu/dist/gltf/transforms/compute-aabb.js'
+import { GltfLoader } from './loader/gltfFire.js';
+import { InitModelSkin2 } from './ModelSkin2/index.js';
+import { SceneObject } from './scene/object.js';
+import { RenderGeometry } from './geometry/geometry.js';
+import { RenderSkin } from './geometry/skin.js';
+import { AnimationTarget } from './animation/animation.js';
 
 
+export interface Renderables {
+  meshes: any[];
+  ambientLight: any,
+  directionalLight?: any;
+  pointLights: any[];
+}
+
+export interface SceneMesh {
+  transform: Mat4;
+  geometry: RenderGeometry,
+  skin?: { skin: RenderSkin, animationTarget: AnimationTarget },
+}
 
 enum RenderMode {
   NORMAL,
@@ -73,16 +94,26 @@ const CONFIG_POINT_UBO = {
     0,
 
 }
-async function main() {
-
+const IDENTITY_MATRIX = mat4.identity();
+const params = {
+  isDisplayEnv: false,
+  isDisplayGround: false,
+};
+function createGUIGlobal() {
   const gui = new GUI();
   gui.width = 300;
-  const params = {
-    isDisplayEnv: false,
-  };
+
   gui.add(params, 'isDisplayEnv').name('Display Environment').onChange(value => {
     params.isDisplayEnv = value;
+
   });
+  gui.add(params, 'isDisplayGround').name('Display Ground').onChange(value => {
+    params.isDisplayGround = value;
+
+  });
+}
+async function main() {
+
 
   const EL_INFO_FPS = document.getElementById("info")
   const canvas = document.querySelector('canvas') as HTMLCanvasElement;
@@ -97,17 +128,37 @@ async function main() {
   const devicePixelRatio = window.devicePixelRatio;
   canvas.width = canvas.clientWidth * devicePixelRatio;
   canvas.height = canvas.clientHeight * devicePixelRatio;
-  const aspect = canvas.width / canvas.height;
 
   //FORMAT
   const presentationFormat = navigator.gpu.getPreferredCanvasFormat()
   const presentationUBOFormat = 'rgba16float'
+  const presentationFormatDepth = 'depth24plus'
   //CONFIG CONTEXT
   configureContext({
     device: device, context: context, presentationFormat: presentationFormat, toneMapping: SIM_UBO_PARAMS.toneMappingMode
   });
 
+  // const CONFIG_RENDER = {
+  //   canvas:{
+  //     width:canvas.width,
+  //     height:canvas.height,
+  //     aspect:canvas.width / canvas.height
+  //   },
+  //   webgpu:{
+  //     device:device,
+  //     format:{
+  //       presentationFormat:presentationFormat,
+  //       presentationUBOFormat:presentationUBOFormat
+  //     }
+  //   },
+  //   gui:{
+  //     global:{
+  //       el:EL_INFO_FPS
+  //     }
+  //   }
 
+  // }
+  createGUIGlobal()
 
   let coutnFrame = 0
   let then = 0;
@@ -119,12 +170,7 @@ async function main() {
   //LOAD TEX
   const result = await cropBinToWebGPUTexture(device, '../img/fast_run_vat.bin', CONFIG_VAT.width, CONFIG_VAT.height, columnGroupsVAT)
   const infoTexVATDetail = result.texture;
-const loader = new GLTFLoader();
-let animationsClip = null
-loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
-  animationsClip = gltf.animations;
-  console.log(animationsClip)
-});
+
   const cubemapUrls = [
     '/src/assets/img/cubemap/posx.jpg',
     '/src/assets/img/cubemap/negx.jpg',
@@ -136,17 +182,13 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
 
   const cubemapTexture = await loadCubemapTexture(device, cubemapUrls);
 
-
-  //LOAD MODEL
-  const whaleScene = await fetch('/src/assets/model/whale.glb').then((res) => res.arrayBuffer())
-    .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
   //CAMERA
   const cameraOrbit = new OrbitCamera(canvas);
   cameraOrbit.target = [0, 0, 0]
 
 
 
-  const mat4Size = 64; // 4 * 4 * 4
+  const mat4Size = 64; // 4 * 4 * 4 , model,view,proj
   const vec3AlignedSize = 16; // vec3<f32> + padding
 
   const BUFFER_CAMERA_UNIFORM_SIZE = mat4Size * 3 + vec3AlignedSize; // 192 + 16 = 208
@@ -187,6 +229,16 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
       height: canvas.height
     }
   })
+  const COMMON_PIPLINE_STATE_DESC = {
+    depthStencil: {
+      depthWriteEnabled: true,
+      depthCompare: "less",
+      format: "depth24plus",
+    },
+    multisample: {
+      count: 1, // <- quan trọng nếu bạn dùng MSAA
+    },
+  }
   const simUBO = new SimUBO({
     device: device,
     POINT_BUFFER: POINT_BUFFER,
@@ -199,12 +251,15 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
     device: device,
     POINT_BUFFER: POINT_BUFFER,
     CONFIG_POINT_UBO: CONFIG_POINT_UBO,
-    presentationFormat: presentationFormat
+    presentationFormat: presentationFormat,
+    COMMON_PIPLINE_STATE_DESC: COMMON_PIPLINE_STATE_DESC
+
   })
   const ground = new InitGround({
     device: device,
     presentationFormat: presentationFormat,
-    cameraBuffer: BUFFER_CAMERA_UNIFORM
+    cameraBuffer: BUFFER_CAMERA_UNIFORM,
+    COMMON_PIPLINE_STATE_DESC: COMMON_PIPLINE_STATE_DESC
   });
 
   const enviromentCube = new InitCubeMap({
@@ -214,28 +269,47 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
     cubemapTexture: cubemapTexture
   });
 
+  // DESC TEXTURE AND RENDERPASS
 
   const depthTexture = device.createTexture({
     size: [canvas.width, canvas.height],
-    format: 'depth24plus',
+    format: presentationFormatDepth,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  const depthTextureMSAA = device.createTexture({
+    size: [canvas.width, canvas.height],
+    format: presentationFormatDepth,
+    sampleCount: COMMON_PIPLINE_STATE_DESC.multisample.count,
     usage: GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
+  const sceneMSAATexture = device.createTexture({
+    size: [canvas.width, canvas.height],
+    sampleCount: COMMON_PIPLINE_STATE_DESC.multisample.count,
+    format: presentationFormat, // hoặc format của sceneMainTexture
+    usage: GPUTextureUsage.RENDER_ATTACHMENT,
+  });
   const sceneMainTexture = device.createTexture({
     size: [canvas.width, canvas.height],
-    format: 'bgra8unorm',
+    format: presentationFormat,
     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
   });
   const sceneRenderPassDesc: GPURenderPassDescriptor = {
     colorAttachments: [{
+      //CASE MSAA
+      // view: sceneMSAATexture.createView(),
+      // resolveTarget: sceneMainTexture.createView(),
+      // CASE ORIGIN
       view: sceneMainTexture.createView(),
       loadOp: 'clear',
       storeOp: 'store',
       clearValue: { r: 0, g: 0, b: 0, a: 1 },
     }],
     depthStencilAttachment: {
+      //CASE MSAA
+      //view: depthTextureMSAA.createView(),
+      // CASE ORIGIN
       view: depthTexture.createView(),
-
       depthClearValue: 1.0,
       depthLoadOp: 'clear',
       depthStoreOp: 'store',
@@ -244,7 +318,7 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
   };
 
 
-  const PostProcessingPassDescriptor: GPURenderPassDescriptor = {
+  const PostProcessingPassDesc: GPURenderPassDescriptor = {
     colorAttachments: [
       {
         view: undefined, // Assigned later
@@ -255,7 +329,6 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
     ],
     depthStencilAttachment: {
       view: depthTexture.createView(),
-
       depthClearValue: 1.0,
       depthLoadOp: 'clear',
       depthStoreOp: 'store',
@@ -264,18 +337,72 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
   };
 
 
-  const skinMesh = new InitModelSkin({
-    animationClip:animationsClip,
-    device: device,
-    presentationFormat: presentationFormat,
-    scene: whaleScene,
-    cameraBGCluster: cameraBGCluster,
-    depthTexture: depthTexture
-  })
+
+  //LOAD MODEL
+  const urlModel = '/src/assets/model/dragon_2.glb'
+  const loaderTHREE = new GLTFLoader();
+  let animationsClip = null
+  let skinMesh = null
+  loaderTHREE.load(urlModel, (gltf) => {
+    animationsClip = gltf.animations;
+    console.log(animationsClip)
+  });
+  const sceneFormat = await fetch(urlModel).then((res) => res.arrayBuffer())
+    .then((buffer) => convertGLBToJSONAndBinary(buffer, device));
+
+  if (animationsClip && sceneFormat) {
+    skinMesh = new InitModelSkin({
+      animationClip: animationsClip,
+      device: device,
+      presentationFormat: presentationFormat,
+      scene: sceneFormat,
+      cameraBGCluster: cameraBGCluster,
+      depthTexture: depthTexture
+    })
+
+  }
+
+  //LOAD MODE V2
+  let skinMesh2
+  let sceneRoot = new SceneObject();
+  const renderParam = {
+    device: device
+  }
+  let selectedAnimation
+  let scene
+  const gltfLoader = new GltfLoader(renderParam)
+  function loadModel(path) {
+    gltfLoader.loadFromUrl(path).then((result) => {
+
+      scene = result.scene;
+      sceneRoot.addChild(scene);
+      if (result.animations.length) {
+        selectedAnimation = result.animations[0];
+
+        const options = [{ text: 'none', value: null }];
+        for (const animation of result.animations) {
+          if (animation.name.includes('IDLE')) {
+            selectedAnimation = animation;
+          }
+          options.push({ text: animation.name, value: animation });
+        }
+      } else {
+        selectedAnimation = null;
+      }
+      skinMesh2 = new InitModelSkin2({
+        device: device,
+        presentationFormat: presentationFormat,
+        cameraBGCluster: cameraBGCluster,
+        gltf: result.core,
+        scene: result.scene,
+        COMMON_PIPLINE_STATE_DESC: COMMON_PIPLINE_STATE_DESC
+      })
+    });
+  }
+  loadModel(urlModel);
 
 
   function updateUniformGlobal() {
-    const viewMatrix = cameraOrbit.viewMatrix
     const mvpMatrix = cameraOrbit.mvpMatrix
     device.queue.writeBuffer(
       simUBO.simulationUBOBuffer,
@@ -319,49 +446,87 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
     }
 
     updateUniformGlobal()
-    skinMesh.updateSkinMesh(then)
+    // if (skinMesh) skinMesh.updateSkinMesh(then)
 
 
     const swapChainTexture = context.getCurrentTexture();
     // prettier-ignore
-    PostProcessingPassDescriptor.colorAttachments[0].view = swapChainTexture.createView();
+    PostProcessingPassDesc.colorAttachments[0].view = swapChainTexture.createView();
 
     const commandEncoder = device.createCommandEncoder();
     {
-      const computePass = commandEncoder.beginComputePass();
-      simUBO.draw(computePass)
+      // const computePass = commandEncoder.beginComputePass();
+      // simUBO.draw(computePass)
     }
     {
       const scenePass = commandEncoder.beginRenderPass(sceneRenderPassDesc);
 
-      if (params.isDisplayEnv) {
-        enviromentCube.draw({
+      // if (params.isDisplayEnv) {
+      //   enviromentCube.draw({
+      //     renderPass: scenePass,
+      //     uniform: [
+      //       cameraBGCluster.bindGroups[0]
+      //     ]
+      //   });
+      // }
+   
+      // if (skinMesh) {
+      //   skinMesh.draw({
+      //     renderPass: scenePass,
+      //     cameraBGCluster: cameraBGCluster
+      //   });
+      // }
+
+      if (params.isDisplayGround) {
+        ground.draw({
           renderPass: scenePass,
           uniform: [
             cameraBGCluster.bindGroups[0]
           ]
         });
       }
+      // point.draw({
+      //   renderPass: scenePass,
+      //   uniform: [
+      //     cameraBGCluster.bindGroups[0]
+      //   ]
+      // });
+        const renderables = {
+      meshes: [],
+    };
+    sceneRoot.getRenderables(renderables);
+    const skinnedMeshes: SceneMesh[] = [];
+ 
+    for (const mesh of renderables.meshes) {
+      // TODO: A single skin COULD be used for multiple meshes, which would make this redundant.
+      if (mesh.skin) {
+        console.log("yo")
+        skinnedMeshes.push(mesh);
+        mesh.skin.skin.updateJoints(device, mesh.skin.animationTarget);
+      }
+    }
+    if (skinnedMeshes) {
+      for (const mesh of skinnedMeshes) {
+        mesh.transform = IDENTITY_MATRIX;
+        mesh.geometry = skinMesh2.skinGeometry(scenePass, mesh.geometry, mesh.skin.skin);
+        mesh.skin = null;
+      }
+  
+    }
 
-      skinMesh.draw({
-        renderPass: scenePass,
-        cameraBGCluster: cameraBGCluster
-      });
-      ground.draw({
-        renderPass: scenePass,
-        uniform: [
-          cameraBGCluster.bindGroups[0]
-        ]
-      });
-      point.draw({
-        renderPass: scenePass,
-        uniform: [
-          cameraBGCluster.bindGroups[0]
-        ]
-      });
+
+       if (skinMesh2) {
+        skinMesh2.draw({
+          renderPass: scenePass,
+          uniform: [
+            cameraBGCluster.bindGroups[0]
+          ]
+        })
+      }
+
       scenePass.end();
 
-      const PostProcessingPass = commandEncoder.beginRenderPass(PostProcessingPassDescriptor);
+      const PostProcessingPass = commandEncoder.beginRenderPass(PostProcessingPassDesc);
       fullSceneQuad.updateBindGroup({
         textureView: sceneMainTexture.createView(),
         sampler,
@@ -373,10 +538,21 @@ loader.load('/src/assets/model/dragon_2.glb', (gltf) => {
     device.queue.submit([commandEncoder.finish()]);
   }
 
-
+  // Frame loop
+  let frameCount = 0;
+  let lastFrameTime = performance.now();
   function frame(now) {
+    const frameStart = performance.now();
+    frameCount++;
 
-    now *= 0.001; // giây
+
+    if (selectedAnimation) {
+      selectedAnimation.applyAtTime(now, scene.animationTarget);
+    }
+
+
+  
+    now *= 0.001;
     const deltaTime = now - then;
     then = now;
 
