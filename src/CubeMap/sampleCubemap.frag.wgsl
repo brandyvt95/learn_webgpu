@@ -13,5 +13,6 @@ fn main(
   // but common camera matrix convention results in a right-handed world space
   // (z toward viewer), so we have to flip it.
   cubemapVec.z *= -1;
-  return textureSample(environmentTexture, environmentSampler, cubemapVec);
+  let oo = textureSample(environmentTexture, environmentSampler, cubemapVec);
+  return vec4f(vec3f(1.,.2,.4),.4) ;
 }

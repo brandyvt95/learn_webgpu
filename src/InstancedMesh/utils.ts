@@ -12,13 +12,27 @@ function degToRad(deg: number) {
     return (deg * Math.PI) / 180;
 }
 
-// Hàm tạo cây từ L-system string
+// Hàm xoay vector 'dir' quanh trục 'axis' góc 'angle' (radian)
+function rotateVector(dir: Vec3, axis: Vec3, angle: number): Vec3 {
+    const [x, y, z] = dir;
+    const [ax, ay, az] = axis;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    const dot = x * ax + y * ay + z * az;
+
+    return [
+        ax * dot * (1 - cosA) + x * cosA + (-az * y + ay * z) * sinA,
+        ay * dot * (1 - cosA) + y * cosA + (az * x - ax * z) * sinA,
+        az * dot * (1 - cosA) + z * cosA + (-ay * x + ax * y) * sinA,
+    ];
+}
+
 export function generateLSystemSegments(
     axiom: string,
     rules: Record<string, string>,
     iterations: number,
     angleDeg = 25,
-    segmentLength = 1
+    segmentLength = 3
 ): Segment[] {
     let result = axiom;
     for (let i = 0; i < iterations; i++) {
@@ -29,65 +43,88 @@ export function generateLSystemSegments(
     }
 
     const angle = degToRad(angleDeg);
-    const positionStack: Vec3[] = [];
-    const directionStack: Vec3[] = [];
-    const idStack: number[] = [];
-    const segments: Segment[] = [];
 
-    let pos: Vec3 = [0, 0, 0];
-    let dir: Vec3 = [0, 1, 0]; // hướng lên
-    let currentId = -1;
-    let parentId = -1;
+    const segments: Segment[] = [];
+    const position: Vec3 = [0, 0, 0];
+    let direction: Vec3 = [0, 1, 0]; // ban đầu hướng lên trục Y
+    let up: Vec3 = [0, 0, 1];
+    let right: Vec3 = [1, 0, 0];
+
+    type TurtleState = {
+        position: Vec3;
+        direction: Vec3;
+        up: Vec3;
+        right: Vec3;
+        parentId: number;
+        depth: number;
+    };
+
+    const stack: TurtleState[] = [];
+    let currentParentId = -1;
+    let segmentId = 0;
     let depth = 0;
 
     for (const char of result) {
-        switch (char) {
-            case "F": {
-                const newPos: Vec3 = [
-                    pos[0] + dir[0] * segmentLength,
-                    pos[1] + dir[1] * segmentLength,
-                    pos[2] + dir[2] * segmentLength,
-                ];
-
-                segments.push({
-                    A: [...pos],
-                    B: [...newPos],
-                    parentId,
-                    depth,
-                    isBranchStart: idStack.length > 0 && currentId !== idStack[idStack.length - 1],
-                });
-
-                currentId = segments.length - 1;
-                parentId = currentId;
-                pos = newPos;
-                break;
-            }
-            case "+": {
-                // xoay quanh trục Z
-                const sin = Math.sin(angle);
-                const cos = Math.cos(angle);
-                dir = [dir[0] * cos - dir[1] * sin, dir[0] * sin + dir[1] * cos, dir[2]];
-                break;
-            }
-            case "-": {
-                const sin = Math.sin(-angle);
-                const cos = Math.cos(-angle);
-                dir = [dir[0] * cos - dir[1] * sin, dir[0] * sin + dir[1] * cos, dir[2]];
-                break;
-            }
-            case "[": {
-                positionStack.push([...pos]);
-                directionStack.push([...dir]);
-                idStack.push(parentId);
-                depth++;
-                break;
-            }
-            case "]": {
-                pos = positionStack.pop()!;
-                dir = directionStack.pop()!;
-                parentId = idStack.pop()!;
-                depth--;
-                break;
+        if (char === "F") {
+            const nextPos: Vec3 = [
+                position[0] + direction[0] * segmentLength,
+                position[1] + direction[1] * segmentLength,
+                position[2] + direction[2] * segmentLength,
+            ];
+            segments.push({
+                A: [...position],
+                B: nextPos,
+                parentId: currentParentId,
+                depth: depth,
+                isBranchStart: false,
+            });
+            currentParentId = segmentId++;
+            position[0] = nextPos[0];
+            position[1] = nextPos[1];
+            position[2] = nextPos[2];
+        } else if (char === "+") {
+            direction = rotateVector(direction, up, angle);
+            right = rotateVector(right, up, angle);
+        } else if (char === "-") {
+            direction = rotateVector(direction, up, -angle);
+            right = rotateVector(right, up, -angle);
+        } else if (char === "&") {
+            direction = rotateVector(direction, right, angle);
+            up = rotateVector(up, right, angle);
+        } else if (char === "^") {
+            direction = rotateVector(direction, right, -angle);
+            up = rotateVector(up, right, -angle);
+        } else if (char === "/") {
+            up = rotateVector(up, direction, angle);
+            right = rotateVector(right, direction, angle);
+        } else if (char === "\\") {
+            up = rotateVector(up, direction, -angle);
+            right = rotateVector(right, direction, -angle);
+        } else if (char === "[") {
+            stack.push({
+                position: [...position],
+                direction: [...direction],
+                up: [...up],
+                right: [...right],
+                parentId: currentParentId,
+                depth: depth,
+            });
+            depth++;
+        } else if (char === "]") {
+            const state = stack.pop();
+            if (state) {
+                position[0] = state.position[0];
+                position[1] = state.position[1];
+                position[2] = state.position[2];
+                direction = [...state.direction];
+                up = [...state.up];
+                right = [...state.right];
+                currentParentId = state.parentId;
+                depth = state.depth;
+                // Đánh dấu là nhánh mới bắt đầu
+                if (segments.length > 0) {
+                    segments[segments.length - 1].isBranchStart = true;
+                }
             }
         }
     }
@@ -98,10 +135,10 @@ export function generateLSystemSegments(
 export function packSegments(segments) {
     const points: number[] = [];
     const meta: number[] = [];
-    console.log(segments)
+  
     for (const seg of segments) {
         
-          
+        console.log(seg.A[2],seg.B[2])
         points.push(...seg.A, ...seg.B); // vec3[] to x,y,z,...
         meta.push(
             seg.parentId ?? -1,

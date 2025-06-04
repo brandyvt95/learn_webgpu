@@ -1,6 +1,6 @@
 export const COMMON_DEPTH_MSAA_DESC = {
   depthStencil: {
-    depthWriteEnabled: true,
+    depthWriteEnabled: false,
     depthCompare: "less",
     format: "depth24plus",
   },

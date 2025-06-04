@@ -227,7 +227,7 @@ async function main({
     cubemapTexture: CORE_ASSETS.textures["cubemap_texture"],
     frameBindGroupLayout: frameBindGroupLayout
   });
-  const LIST_PIPLINE = [ground, enviromentCube,instanced]
+  const LIST_PIPLINE = [ground/* , enviromentCube */,instanced]
   const {
     depthTexture,
     depthTextureMSAA,

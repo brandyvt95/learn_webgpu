@@ -14,6 +14,7 @@ export async function initCoreEngine({ canvas }: { canvas: HTMLCanvasElement }) 
   //CONFIG CONTEXT
   configureContext({
     device: device, context: context, presentationFormat: presentationFormat,
+      alphaMode: 'premultiplied',
     /*  toneMapping: SIM_UBO_PARAMS.toneMappingMode */
   });
 

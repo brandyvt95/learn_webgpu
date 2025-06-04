@@ -21,19 +21,17 @@ struct CameraUniforms {
   cameraPosition : vec3<f32>,
   padding : f32, // <- để giữ alignment 16 bytes
 }
-@group(0) @binding(0) var<uniform> camera_uniforms: CameraUniforms;
-@group(1) @binding(0) var<uniform> uTime: f32;
-@group(2) @binding(0) var<storage, read> points: array<vec3<f32>>;
-@group(3) @binding(0) var<storage, read> pointss: array<vec3<f32>>;
-@group(3) @binding(1) var<storage, read> segmentMeta: array<vec4<u32>>;
 struct VertexOutput {
   @builtin(position) Position : vec4f,
   @location(0) fragUV : vec2f,
   @location(1) fragPosition: vec4f,
 }
 
-
-
+@group(0) @binding(0) var<uniform> camera_uniforms: CameraUniforms;
+@group(1) @binding(0) var<uniform> uTime: f32;
+@group(2) @binding(0) var<storage, read> points: array<vec3<f32>>;
+@group(3) @binding(0) var<storage, read> pointss: array<f32>;
+@group(3) @binding(1) var<storage, read> segmentMeta: array<vec4<u32>>;
 
 @vertex
 fn main(
@@ -42,49 +40,55 @@ fn main(
   @location(1) uv : vec2f
 ) -> VertexOutput {
   var output : VertexOutput;
-// Lấy 2 điểm cho instance hiện tại
-let A = pointss[instanceIdx * 2];       // lấy vec3 tại điểm 2 * instanceIdx
-let B = pointss[instanceIdx * 2 + 1];   // lấy vec3 ngay sau đó
+  
+let baseIndex = instanceIdx * 6u;
 
-let dir = normalize(B - A);
-let len = distance(B, A);
-let defaultDir = vec3<f32>(1.0, 0.0, 0.0);
-let axis = cross(defaultDir, dir);
-let axisLength = length(axis);
-let cosAngle = dot(defaultDir, dir);
-let angle = acos(cosAngle);
-var rot: mat3x3<f32>;
-if (axisLength < 0.0001) {
-  // Hai vector gần như trùng nhau hoặc ngược nhau
-  if (cosAngle > 0.0) {
-    // Cùng hướng, ma trận xoay là ma trận đơn vị
-    rot = mat3x3<f32>(
-      vec3<f32>(1.0, 0.0, 0.0),
-      vec3<f32>(0.0, 1.0, 0.0),
-      vec3<f32>(0.0, 0.0, 1.0)
-    );
-  } else {
-    // Ngược hướng, xoay 180 độ quanh trục bất kỳ vuông góc
-    // Ví dụ trục Y
-    rot = rotationMatrix(vec3<f32>(0.0, 1.0, 0.0), 3.1415926);
-  }
-} else {
-  // Bình thường, tạo ma trận xoay quanh axis với góc angle
-  rot = rotationMatrix(normalize(axis), angle);
+let A = vec3<f32>(
+  pointss[baseIndex + 0u],
+  pointss[baseIndex + 1u],
+  pointss[baseIndex + 2u]
+);
+
+let B = vec3<f32>(
+  pointss[baseIndex + 3u],
+  pointss[baseIndex + 4u],
+  pointss[baseIndex + 5u]
+);
+ let direction = B - A;
+let segmentLength = length(direction);
+let forward = normalize(direction);
+
+// ✅ Chọn up vector tự động tránh parallel
+var up = vec3<f32>(0.0, 1.0, 0.0);
+if (abs(dot(forward, up)) > 0.9) {  // Nếu gần song song
+    up = vec3<f32>(1.0, 0.0, 0.0);  // Dùng trục X thay thế
 }
-let t = clamp(uTime * 0.5, 0.0, 1.0); 
-let scaleVec = vec3<f32>(t * len, 0.01,0.01);
-let pivotStart = vec3<f32>(1., 0.0, 0.0);
-let localPos = position.xyz - pivotStart; 
-let scaled = localPos * scaleVec;
-let rotated = rot * scaled;
 
-let finalPos = A + rotated;
-
-
+let right = normalize(cross(forward, up));
+let actualUp = normalize(cross(right, forward));  // ✅ Tính lại up chính xác
+    
+    // Scale cube theo thời gian: từ 0 đến segmentLength
+    let currentLength = segmentLength * uTime * 0.1;
+    
+    let scaledPos = vec3<f32>(
+        position.x * 0.05,  // thickness cố định
+        position.y * currentLength * 0.5,  // length từ 0 đến segmentLength/2
+        position.z * 0.05   // thickness cố định
+    );
+    
+    // ✅ QUAN TRỌNG: Center luôn cách A một khoảng currentLength/2
+    // Cube sẽ bắt đầu tại A, mở rộng về phía B
+    let center = A + forward * (currentLength * 0.5);
+    
+    // Transform cube position
+    let worldPos = center + 
+        right * scaledPos.x + 
+        forward * scaledPos.y + 
+        actualUp * scaledPos.z;
+    
   output.Position = camera_uniforms.projectionMatrix *
                     camera_uniforms.viewMatrix *
-                    vec4<f32>(finalPos, 1.0);
+                    vec4<f32>(worldPos  * .1, 1.0);
 
   output.fragUV = uv;
   output.fragPosition = 0.5 * (position + vec4(1.0));

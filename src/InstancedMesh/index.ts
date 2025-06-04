@@ -43,7 +43,7 @@ export class InitInstancedMesh {
   branchBindGroup: GPUBindGroup
   constructor({ device, presentationFormat, frameBindGroupLayout }: InitInstancedMeshOptions) {
     this.device = device;
-    this.numInstances = 1000
+    this.numInstances = 2000
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -287,7 +287,13 @@ export class InitInstancedMesh {
       1
     );
     const { points, meta: segmentMeta } = packSegments(segments);
-
+    const sample = new Float32Array([
+      0,0,0,
+      0,1,0,
+      1,1,1,
+      2,2,0,
+    ]) 
+   
     const pointsBuffer = this.device.createBuffer({
       size: points.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -313,6 +319,7 @@ export class InitInstancedMesh {
       ],
     });
     console.log("pointsBuffer", points);
+ 
     // Create a vertex buffer from the cube data.
     this.verticesBuffer = this.device.createBuffer({
       size: cubeVertexArray.byteLength,

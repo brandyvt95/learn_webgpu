@@ -73,7 +73,7 @@ export class InitCubeMap {
             bindGroupLayouts: [this.frameBindGroupLayout, group0Layout],
         });
         this.pipeline = this.device.createRenderPipeline({
-            label:'cube map pipline',
+            label: 'cube map pipline',
             layout: pipelineLayout,
             vertex: {
                 module: this.device.createShaderModule({
@@ -106,6 +106,18 @@ export class InitCubeMap {
                 targets: [
                     {
                         format: this.presentationFormat,
+                        blend: {
+                            color: {
+                                srcFactor: "src-alpha",
+                                dstFactor: "one-minus-src-alpha",
+                                operation: "add",
+                            },
+                            alpha: {
+                                srcFactor: "one",
+                                dstFactor: "one-minus-src-alpha",
+                                operation: "add",
+                            },
+                        }, writeMask: GPUColorWrite.ALL,
                     },
                 ],
             },
