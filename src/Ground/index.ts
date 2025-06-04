@@ -1,11 +1,12 @@
-import groundWGSL from '../shaders/ground.wgsl'; // cách import raw text (tuỳ config bundler)
+import { COMMON_DEPTH_MSAA_DESC } from '../contrast';
+import { createPlaneSample } from '../meshes/planeSample';
+import groundWGSL from './ground.wgsl'; // cách import raw text (tuỳ config bundler)
 
 import { GUI } from 'dat.gui';
 interface GroundOptions {
     device: GPUDevice;
     presentationFormat: GPUTextureFormat;
-    cameraBuffer: any,
-    COMMON_PIPLINE_STATE_DESC:any
+    frameBindGroupLayout: any,
 }
 
 export class InitGround {
@@ -19,20 +20,15 @@ export class InitGround {
     presentationFormat: any
     cameraBuffer: any
     gui:any
-    COMMON_PIPLINE_STATE_DESC:any
-    constructor({ device, presentationFormat, cameraBuffer,COMMON_PIPLINE_STATE_DESC }: GroundOptions) {
+    frameBindGroupLayout:any
+    constructor({ device, presentationFormat, frameBindGroupLayout }: GroundOptions) {
         this.device = device;
-        this.COMMON_PIPLINE_STATE_DESC = COMMON_PIPLINE_STATE_DESC
-        this.cameraBuffer = cameraBuffer
+    
+        this.frameBindGroupLayout = frameBindGroupLayout
         this.uniformBindGroup = null;
         this.uniformBuffer = null
         this.presentationFormat = presentationFormat
-        this.gui = {
-            x:0,
-            y:-.2,
-            z:0,
-            w:0
-        }
+        
         this.createGUI()
         this.createPipeline();
         this.creatUniform()
@@ -41,6 +37,12 @@ export class InitGround {
     }
 
     createGUI() {
+        this.gui = {
+            x:0,
+            y:-.2,
+            z:0,
+            w:0
+        }
         const gui = new GUI();
         gui.width = 200;
         gui.add(this.gui, 'x', -10, 10).step(0.1).name('Position X');
@@ -49,14 +51,7 @@ export class InitGround {
         gui.add(this.gui, 'w', -10, 10).step(0.1).name('Position W');
     }
     createPipeline() {
-        const groundBindGroupLayout = this.device.createBindGroupLayout({
-            entries: [{
-                binding: 0,
-                visibility: GPUShaderStage.VERTEX,
-                buffer: { type: 'uniform' }
-            }]
-        });
-        const cameraBindGroupLayout = this.device.createBindGroupLayout({
+       const groundBindGroupLayout = this.device.createBindGroupLayout({
             entries: [{
                 binding: 0,
                 visibility: GPUShaderStage.VERTEX,
@@ -64,9 +59,10 @@ export class InitGround {
             }]
         });
         const pipelineLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [groundBindGroupLayout, cameraBindGroupLayout]
+            bindGroupLayouts: [this.frameBindGroupLayout,groundBindGroupLayout]
         });
         this.pipeline = this.device.createRenderPipeline({
+            label:'ground pipline',
             layout: pipelineLayout,
             vertex: {
                 module: this.device.createShaderModule({ code: groundWGSL }),
@@ -89,50 +85,17 @@ export class InitGround {
             primitive: {
                 topology: 'triangle-list',
                 cullMode: 'none',
-
             },
-            ...this.COMMON_PIPLINE_STATE_DESC
-        } as any);
-    }
-
-    createMesh() {
-        // Tạo plane đơn giản 2x2, 2 tam giác, có vị trí và UV
-        // Vertex data: [x,y,z, u,v]
-        const vertices = new Float32Array([
-            -1, 0, -1, 0, 0,
-            1, 0, -1, 1, 0,
-            1, 0, 1, 1, 1,
-            -1, 0, 1, 0, 1,
-        ]);
-
-        this.vertexBuffer = this.device.createBuffer({
-            size: vertices.byteLength,
-            usage: GPUBufferUsage.VERTEX,
-            mappedAtCreation: true,
-        });
-        new Float32Array(this.vertexBuffer.getMappedRange()).set(vertices);
-        this.vertexBuffer.unmap();
-
-        const indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
-        this.indexCount = indices.length;
-
-        this.indexBuffer = this.device.createBuffer({
-            size: indices.byteLength,
-            usage: GPUBufferUsage.INDEX,
-            mappedAtCreation: true,
-        });
-        new Uint16Array(this.indexBuffer.getMappedRange()).set(indices);
-        this.indexBuffer.unmap();
-    }
-    creatUniform() {
-        const bufferSize = 4 * 4; // 4 floats * 4 bytes = 16 bytes
+            ...COMMON_DEPTH_MSAA_DESC as any
+        })
+         const bufferSize = 4 * 4; // 4 floats * 4 bytes = 16 bytes
         this.uniformBuffer = this.device.createBuffer({
             size: bufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
         this.uniformBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(0),
+            layout: groundBindGroupLayout,
             entries: [
                 {
                     binding: 0,
@@ -143,9 +106,20 @@ export class InitGround {
 
             ],
         });
+
     }
-    updateUniforms(values: [number, number, number, number]) {
-        const data = new Float32Array(values);
+
+    createMesh() {
+        const {vertexBuffer,indexBuffer,indexCount} = createPlaneSample(this.device)
+        this.vertexBuffer = vertexBuffer
+        this.indexBuffer = indexBuffer
+        this.indexCount = indexCount
+    }
+    creatUniform() {
+       
+    }
+    updateUniforms() {
+        const data = new Float32Array([this.gui.x,this.gui.y,this.gui.z,this.gui.w]);
         this.device.queue.writeBuffer(
             this.uniformBuffer,
             0,      
@@ -155,16 +129,11 @@ export class InitGround {
         );
     }
 
-    draw({ renderPass, uniform }: { renderPass: GPURenderPassEncoder, uniform?: GPUBindGroup[] }) {
+    draw({ renderPass, frameBindGroup }: { renderPass: GPURenderPassEncoder, frameBindGroup: GPUBindGroup }) {
         renderPass.setPipeline(this.pipeline);
-        this.updateUniforms([this.gui.x,this.gui.y,this.gui.z,this.gui.w]);
-        renderPass.setBindGroup(0, this.uniformBindGroup);
-
-        if (uniform && uniform.length > 0) {
-            for (let i = 0; i < uniform.length; i++) {
-            renderPass.setBindGroup(1, uniform[i]);
-            }
-        }
+        this.updateUniforms();
+        renderPass.setBindGroup(0, frameBindGroup);
+         renderPass.setBindGroup(1, this.uniformBindGroup);
         renderPass.setVertexBuffer(0, this.vertexBuffer);
         renderPass.setIndexBuffer(this.indexBuffer, 'uint16');
         renderPass.drawIndexed(this.indexCount);

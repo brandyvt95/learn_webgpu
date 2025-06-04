@@ -4,7 +4,7 @@ import {
   quitIfAdapterNotAvailable,
   quitIfWebGPUNotAvailable,
   quitIfLimitLessThan,
-} from '../util';
+} from '../CORE/util';
 
 type BindGroupBindingLayout =
   | GPUBufferBindingLayout

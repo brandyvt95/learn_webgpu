@@ -3,7 +3,7 @@ import groundWGSL from '../shaders/ground.wgsl'; // cách import raw text (tuỳ
 interface GroundOptions {
   device: GPUDevice;
   presentationFormat: GPUTextureFormat;
-  COMMON_PIPLINE_STATE_DESC: any
+  COMMON_DEPTH_MSAA_DESC: any
   POINT_BUFFER:any
   CONFIG_POINT_UBO:any
 }
@@ -28,14 +28,14 @@ export class InitPoint1X {
   vertexBuffer: any
   pipline: any
   bindGroup: any
-  COMMON_PIPLINE_STATE_DESC: any
+  COMMON_DEPTH_MSAA_DESC: any
   POINT_BUFFER:any
   CONFIG_POINT_UBO:any
-  constructor({ device, presentationFormat,POINT_BUFFER,CONFIG_POINT_UBO, COMMON_PIPLINE_STATE_DESC }: GroundOptions) {
+  constructor({ device, presentationFormat,POINT_BUFFER,CONFIG_POINT_UBO, COMMON_DEPTH_MSAA_DESC }: GroundOptions) {
     this.device = device;
     this.POINT_BUFFER = POINT_BUFFER
     this.CONFIG_POINT_UBO = CONFIG_POINT_UBO
-    this.COMMON_PIPLINE_STATE_DESC = COMMON_PIPLINE_STATE_DESC
+    this.COMMON_DEPTH_MSAA_DESC = COMMON_DEPTH_MSAA_DESC
     this.presentationFormat = presentationFormat
     this.createPipeline();
     this.creatUniform()
@@ -123,7 +123,7 @@ export class InitPoint1X {
       primitive: {
         topology: 'point-list',
       },
-      ...this.COMMON_PIPLINE_STATE_DESC
+      ...this.COMMON_DEPTH_MSAA_DESC
     });
 
     const vertexData = createFibonacciSphereVertices({

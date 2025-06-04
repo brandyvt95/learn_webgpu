@@ -13,7 +13,7 @@ interface ModelSkin2Options {
   presentationFormat: GPUTextureFormat;
   cameraBGCluster: any;
   gltf: any;
-  COMMON_PIPLINE_STATE_DESC: any
+  COMMON_DEPTH_MSAA_DESC: any
   scene: any
   skinBindGroup:any
   skinBindGroupLayout:any
@@ -145,7 +145,7 @@ export class InitModelSkin2 {
   jointBindGroup: GPUBindGroup | null = null;
   joints: Number[]
   scene: any
-  COMMON_PIPLINE_STATE_DESC: any
+  COMMON_DEPTH_MSAA_DESC: any
 
   #skinnedGeometry: WeakMap<RenderGeometry, SkinnedGeometry> = new WeakMap();
   #skinningPipelines: Map<number, GPUComputePipeline> = new Map();
@@ -155,13 +155,13 @@ skinBindGroup:any
   geometry: any
   skin: any
 
-  constructor({ device, presentationFormat, scene, COMMON_PIPLINE_STATE_DESC, gltf,skinBindGroup,skinBindGroupLayout }: ModelSkin2Options) {
+  constructor({ device, presentationFormat, scene, COMMON_DEPTH_MSAA_DESC, gltf,skinBindGroup,skinBindGroupLayout }: ModelSkin2Options) {
     this.device = device;
     this.gltf = gltf;
     this.scene = scene
     this.skinBindGroup = skinBindGroup
     this.skinBindGroupLayout = skinBindGroupLayout
-    this.COMMON_PIPLINE_STATE_DESC = COMMON_PIPLINE_STATE_DESC
+    this.COMMON_DEPTH_MSAA_DESC = COMMON_DEPTH_MSAA_DESC
     this.checkInfo();
     this.createMesh();
     this.createUniform();
@@ -339,7 +339,7 @@ this.jointBuffer.unmap();
         cullMode: "back",
       },
 
-      ...this.COMMON_PIPLINE_STATE_DESC
+      ...this.COMMON_DEPTH_MSAA_DESC
     });
   }
 

@@ -1,23 +1,6 @@
-/* https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
 
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-
-https://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexturehttps://06wj.github.io/WebGPU-Playground/#/Samples/CubeTexture
-*/
-import basicVertWGSL from '../meshes/basic.vert.wgsl';
-import sampleCubemapWGSL from '../meshes/sampleCubemap.frag.wgsl';
+import basicVertWGSL from './basic.vert.wgsl';
+import sampleCubemapWGSL from './sampleCubemap.frag.wgsl';
 import { GUI } from 'dat.gui';
 import {
     cubeVertexArray,
@@ -26,11 +9,12 @@ import {
     cubePositionOffset,
     cubeVertexCount,
 } from '../meshes/cube';
+import { COMMON_DEPTH_MSAA_DESC } from '../contrast';
 
 interface InitCubeMapOptions {
     device: GPUDevice;
     presentationFormat: GPUTextureFormat;
-    cameraBuffer: any;
+    frameBindGroupLayout: any;
     cubemapTexture: any
 }
 
@@ -43,23 +27,18 @@ export class InitCubeMap {
     uniformBindGroup: any;
     uniformBuffer: any;
     presentationFormat: any
-    cameraBuffer: any
+    frameBindGroupLayout: any
     gui: any
     cubemapTexture: GPUTexture
     verticesBuffer: any
-    constructor({ device, presentationFormat, cameraBuffer, cubemapTexture }: InitCubeMapOptions) {
+    constructor({ device, presentationFormat, frameBindGroupLayout, cubemapTexture }: InitCubeMapOptions) {
         this.device = device;
-        this.cameraBuffer = cameraBuffer
+        this.frameBindGroupLayout = frameBindGroupLayout
         this.uniformBindGroup = null;
         this.uniformBuffer = null
         this.presentationFormat = presentationFormat
         this.cubemapTexture = cubemapTexture
-        this.gui = {
-            x: 0,
-            y: -1,
-            z: 0,
-            w: 0
-        }
+
         //this.createGUI()
         this.createPipeline();
         this.creatUniform()
@@ -68,6 +47,12 @@ export class InitCubeMap {
     }
 
     createGUI() {
+        this.gui = {
+            x: 0,
+            y: -1,
+            z: 0,
+            w: 0
+        }
         const gui = new GUI();
         gui.width = 325;
         gui.add(this.gui, 'x', -10, 10).step(0.1).name('Position X');
@@ -84,16 +69,11 @@ export class InitCubeMap {
                 { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float', viewDimension: 'cube' } },                   // texture_cube
             ],
         });
-
-        const group1Layout = this.device.createBindGroupLayout({
-            entries: [
-                { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: 'uniform' } }, // camera_uniforms
-            ],
-        });
         const pipelineLayout = this.device.createPipelineLayout({
-            bindGroupLayouts: [group0Layout, group1Layout],
+            bindGroupLayouts: [this.frameBindGroupLayout, group0Layout],
         });
         this.pipeline = this.device.createRenderPipeline({
+            label:'cube map pipline',
             layout: pipelineLayout,
             vertex: {
                 module: this.device.createShaderModule({
@@ -140,11 +120,7 @@ export class InitCubeMap {
 
             // Enable depth testing so that the fragment closest to the camera
             // is rendered in front.
-            depthStencil: {
-                depthWriteEnabled: true,
-                depthCompare: 'less',
-                format: 'depth24plus',
-            },
+            ...COMMON_DEPTH_MSAA_DESC as any
         });
     }
 
@@ -171,7 +147,7 @@ export class InitCubeMap {
         });
 
         this.uniformBindGroup = this.device.createBindGroup({
-            layout: this.pipeline.getBindGroupLayout(0),
+            layout: this.pipeline.getBindGroupLayout(1),
             entries: [
                 {
                     binding: 0,
@@ -194,28 +170,12 @@ export class InitCubeMap {
             ],
         });
     }
-    updateUniforms(values: [number, number, number, number]) {
-        const data = new Float32Array(values);
-        this.device.queue.writeBuffer(
-            this.uniformBuffer,
-            0,
-            data.buffer,
-            data.byteOffset,
-            data.byteLength
-        );
-    }
-
-    draw({ renderPass, uniform }: { renderPass: GPURenderPassEncoder, uniform?: GPUBindGroup[] }) {
-
+    draw({ renderPass, frameBindGroup }: { renderPass: GPURenderPassEncoder, frameBindGroup: GPUBindGroup }) {
 
         renderPass.setPipeline(this.pipeline);
         renderPass.setVertexBuffer(0, this.verticesBuffer);
-        renderPass.setBindGroup(0, this.uniformBindGroup);
-        if (uniform && uniform.length > 0) {
-            for (let i = 0; i < uniform.length; i++) {
-                renderPass.setBindGroup(i + 1, uniform[i]);
-            }
-        }
+        renderPass.setBindGroup(0, frameBindGroup);
+        renderPass.setBindGroup(1, this.uniformBindGroup);
         renderPass.draw(cubeVertexCount);
 
 

@@ -15,15 +15,16 @@ export class OrbitCamera {
   public minDistance: number = 1;
   public distanceStep: number = 0.005;
   public constrainDistance: boolean = false;
+  private targetDistance: number = 5;
 
   public modelMatrix: Float32Array = mat4.create();
   public projectionMatrix: Float32Array = mat4.create();
-  public mvpMatrix: Float32Array = mat4.create(); 
+  public mvpMatrix: Float32Array = mat4.create();
   public fov: number = 45;
   public near: number = .01;
   public far: number = 100;
 
-  
+
   private distance_: Float32Array = vec3.fromValues(0, 0, 5);
   private target_: Float32Array = vec3.create();
   private viewMat_: Float32Array = mat4.create();
@@ -34,11 +35,17 @@ export class OrbitCamera {
   private element_: HTMLElement | null = null;
   private registerElement_: (element: HTMLElement | null) => void;
 
+  private xDelta = 0;
+  private yDelta = 0;
+  private targetXDelta = 0;
+  private targetYDelta = 0;
+
+
   constructor(element: HTMLElement | null = null) {
     let moving = false;
     let lastX: number, lastY: number;
 
-    this.modelMatrix = createModelMatrix([0, 0, 0], [0, Math.PI/4, 0], [1, 1, 1]);
+    this.modelMatrix = createModelMatrix([0, 0, 0], [0, Math.PI / 4, 0], [1, 1, 1]);
     this.projectionMatrix = mat4.create();
     this.mvpMatrix = mat4.create();
 
@@ -52,20 +59,20 @@ export class OrbitCamera {
     };
 
     const moveCallback = (event: PointerEvent): void => {
-      let xDelta: number, yDelta: number;
-
       if (document.pointerLockElement) {
-        xDelta = event.movementX;
-        yDelta = event.movementY;
-        this.orbit(xDelta * 0.025, yDelta * 0.025);
+        this.targetXDelta += event.movementX * 0.025;
+        this.targetYDelta += event.movementY * 0.025;
       } else if (moving) {
-        xDelta = event.pageX - lastX;
-        yDelta = event.pageY - lastY;
+        const dx = event.pageX - lastX;
+        const dy = event.pageY - lastY;
         lastX = event.pageX;
         lastY = event.pageY;
-        this.orbit(xDelta * 0.025, yDelta * 0.025);
+
+        this.targetXDelta += dx * 0.025;
+        this.targetYDelta += dy * 0.025;
       }
     };
+
 
     const upCallback = (event: PointerEvent): void => {
       if (event.isPrimary) {
@@ -74,7 +81,10 @@ export class OrbitCamera {
     };
 
     const wheelCallback = (event: WheelEvent): void => {
-      this.distance = this.distance_[2] + (event.deltaY * this.distanceStep * 4.3);
+      //this.distance = this.distance_[2] + (event.deltaY * this.distanceStep * 4.3);
+      const delta = event.deltaY * this.distanceStep * 4.3;
+      this.targetDistance = this.distance_[2] + delta;
+
       event.preventDefault();
     };
 
@@ -162,10 +172,22 @@ export class OrbitCamera {
     }
     this.dirty_ = true;
   }
-
+  private lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t;
+  }
+  update() {
+    this.xDelta = this.lerp(this.xDelta, this.targetXDelta, 0.1);
+    this.yDelta = this.lerp(this.yDelta, this.targetYDelta, 0.1);
+    if (Math.abs(this.xDelta) > 0.001 || Math.abs(this.yDelta) > 0.001) {
+      this.orbit(this.xDelta, this.yDelta);
+      this.targetXDelta *= 0.2;
+      this.targetYDelta *= 0.2;
+    }
+    this.distance = this.lerp(this.distance, this.targetDistance, 0.1);
+  }
   private updateMatrices_(): void {
     if (this.dirty_) {
-      
+
       const mv = this.cameraMat_;
       mat4.identity(mv);
 
@@ -176,10 +198,10 @@ export class OrbitCamera {
       mat4.invert(this.cameraMat_, this.viewMat_);
 
 
-      updateProjection(this.element_ ,this.projectionMatrix,  this.fov,this.near,this.far);
-   
+      updateProjection(this.element_, this.projectionMatrix, this.fov, this.near, this.far);
+
       mat4.mul(this.projectionMatrix, this.viewMat_, this.mvpMatrix); // P × V
-      mat4.mul(this.mvpMatrix, this.modelMatrix, this.mvpMatrix);  
+      mat4.mul(this.mvpMatrix, this.modelMatrix, this.mvpMatrix);
 
       this.dirty_ = false;
     }

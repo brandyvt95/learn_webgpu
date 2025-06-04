@@ -6,7 +6,7 @@ interface PointOptions {
     presentationFormat: GPUTextureFormat;
     POINT_BUFFER: any;
     CONFIG_POINT_UBO: any;
-    COMMON_PIPLINE_STATE_DESC: any
+    COMMON_DEPTH_MSAA_DESC: any
 }
 
 export class InitPoint {
@@ -30,10 +30,10 @@ export class InitPoint {
     presentationFormat: any
     gui: any
 
-    COMMON_PIPLINE_STATE_DESC: any
-    constructor({ device, POINT_BUFFER, CONFIG_POINT_UBO, presentationFormat,COMMON_PIPLINE_STATE_DESC }: PointOptions) {
+    COMMON_DEPTH_MSAA_DESC: any
+    constructor({ device, POINT_BUFFER, CONFIG_POINT_UBO, presentationFormat,COMMON_DEPTH_MSAA_DESC }: PointOptions) {
         this.device = device;
-        this.COMMON_PIPLINE_STATE_DESC = COMMON_PIPLINE_STATE_DESC
+        this.COMMON_DEPTH_MSAA_DESC = COMMON_DEPTH_MSAA_DESC
         this.POINT_BUFFER = POINT_BUFFER
         this.CONFIG_POINT_UBO = CONFIG_POINT_UBO
         this.numParticles = this.CONFIG_POINT_UBO.numParticles
@@ -167,7 +167,7 @@ export class InitPoint {
                 topology: 'triangle-list',
             },
 
-            ...this.COMMON_PIPLINE_STATE_DESC
+            ...this.COMMON_DEPTH_MSAA_DESC
         });
     }
     creatUniform() {

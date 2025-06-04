@@ -1,6 +1,5 @@
-@group(0) @binding(1) var mySampler: sampler;
-@group(0) @binding(2) var myTexture: texture_cube<f32>;
-
+  @group(0) @binding(2) var environmentSampler : sampler;
+  @group(0) @binding(3) var environmentTexture : texture_cube<f32>;
 @fragment
 fn main(
   @location(0) fragUV: vec2f,
@@ -14,5 +13,5 @@ fn main(
   // but common camera matrix convention results in a right-handed world space
   // (z toward viewer), so we have to flip it.
   cubemapVec.z *= -1;
-  return textureSample(myTexture, mySampler, cubemapVec);
+  return textureSample(environmentTexture, environmentSampler, cubemapVec);
 }
