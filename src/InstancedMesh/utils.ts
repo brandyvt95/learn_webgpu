@@ -12,10 +12,26 @@ function degToRad(deg: number) {
     return (deg * Math.PI) / 180;
 }
 
+// Hàm normalize vector
+function normalize(v: Vec3): Vec3 {
+    const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (len === 0) return [0, 0, 0];
+    return [v[0] / len, v[1] / len, v[2] / len];
+}
+
+// Hàm cross product
+function cross(a: Vec3, b: Vec3): Vec3 {
+    return [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0]
+    ];
+}
+
 // Hàm xoay vector 'dir' quanh trục 'axis' góc 'angle' (radian)
 function rotateVector(dir: Vec3, axis: Vec3, angle: number): Vec3 {
     const [x, y, z] = dir;
-    const [ax, ay, az] = axis;
+    const [ax, ay, az] = normalize(axis); // ✅ normalize axis
     const cosA = Math.cos(angle);
     const sinA = Math.sin(angle);
     const dot = x * ax + y * ay + z * az;
@@ -31,7 +47,7 @@ export function generateLSystemSegments(
     axiom: string,
     rules: Record<string, string>,
     iterations: number,
-    angleDeg = 25,
+    angleDeg = 42,
     segmentLength = 3
 ): Segment[] {
     let result = axiom;
@@ -43,88 +59,157 @@ export function generateLSystemSegments(
     }
 
     const angle = degToRad(angleDeg);
-
     const segments: Segment[] = [];
-    const position: Vec3 = [0, 0, 0];
-    let direction: Vec3 = [0, 1, 0]; // ban đầu hướng lên trục Y
-    let up: Vec3 = [0, 0, 1];
-    let right: Vec3 = [1, 0, 0];
 
-    type TurtleState = {
+    // ✅ Turtle state with proper orthogonal basis
+    class TurtleState {
         position: Vec3;
-        direction: Vec3;
-        up: Vec3;
-        right: Vec3;
+        heading: Vec3;    // forward direction
+        left: Vec3;       // left direction  
+        up: Vec3;         // up direction
         parentId: number;
         depth: number;
-    };
+
+        constructor(
+            pos: Vec3 = [0, 0, 0],
+            heading: Vec3 = [0, 1, 0],
+            left: Vec3 = [-1, 0, 0],
+            up: Vec3 = [0, 0, 1],
+            parentId: number = -1,
+            depth: number = 0
+        ) {
+            this.position = [...pos];
+            this.heading = normalize(heading);
+            this.left = normalize(left);
+            this.up = normalize(up);
+            this.parentId = parentId;
+            this.depth = depth;
+        }
+
+        // ✅ Ensure orthogonal basis after rotation
+        orthonormalize() {
+            this.heading = normalize(this.heading);
+            this.left = normalize(cross(this.up, this.heading));
+            this.up = normalize(cross(this.heading, this.left));
+        }
+
+        copy(): TurtleState {
+            return new TurtleState(
+                [...this.position],
+                [...this.heading],
+                [...this.left],
+                [...this.up],
+                this.parentId,
+                this.depth
+            );
+        }
+
+        // Rotate around up axis (yaw) - turn left/right
+        turnLeft(angle: number) {
+            this.heading = rotateVector(this.heading, this.up, angle);
+            this.left = rotateVector(this.left, this.up, angle);
+            this.orthonormalize();
+        }
+
+        turnRight(angle: number) {
+            this.turnLeft(-angle);
+        }
+
+        // Rotate around left axis (pitch) - pitch up/down
+        pitchUp(angle: number) {
+            this.heading = rotateVector(this.heading, this.left, angle);
+            this.up = rotateVector(this.up, this.left, angle);
+            this.orthonormalize();
+        }
+
+        pitchDown(angle: number) {
+            this.pitchUp(-angle);
+        }
+
+        // Rotate around heading axis (roll) - roll left/right
+        rollLeft(angle: number) {
+            this.left = rotateVector(this.left, this.heading, angle);
+            this.up = rotateVector(this.up, this.heading, angle);
+            this.orthonormalize();
+        }
+
+        rollRight(angle: number) {
+            this.rollLeft(-angle);
+        }
+
+        // Move forward
+        moveForward(distance: number): Vec3 {
+            const newPos: Vec3 = [
+                this.position[0] + this.heading[0] * distance,
+                this.position[1] + this.heading[1] * distance,
+                this.position[2] + this.heading[2] * distance,
+            ];
+            return newPos;
+        }
+    }
 
     const stack: TurtleState[] = [];
-    let currentParentId = -1;
+    let turtle = new TurtleState();
     let segmentId = 0;
-    let depth = 0;
 
     for (const char of result) {
-        if (char === "F") {
-            const nextPos: Vec3 = [
-                position[0] + direction[0] * segmentLength,
-                position[1] + direction[1] * segmentLength,
-                position[2] + direction[2] * segmentLength,
-            ];
-            segments.push({
-                A: [...position],
-                B: nextPos,
-                parentId: currentParentId,
-                depth: depth,
-                isBranchStart: false,
-            });
-            currentParentId = segmentId++;
-            position[0] = nextPos[0];
-            position[1] = nextPos[1];
-            position[2] = nextPos[2];
-        } else if (char === "+") {
-            direction = rotateVector(direction, up, angle);
-            right = rotateVector(right, up, angle);
-        } else if (char === "-") {
-            direction = rotateVector(direction, up, -angle);
-            right = rotateVector(right, up, -angle);
-        } else if (char === "&") {
-            direction = rotateVector(direction, right, angle);
-            up = rotateVector(up, right, angle);
-        } else if (char === "^") {
-            direction = rotateVector(direction, right, -angle);
-            up = rotateVector(up, right, -angle);
-        } else if (char === "/") {
-            up = rotateVector(up, direction, angle);
-            right = rotateVector(right, direction, angle);
-        } else if (char === "\\") {
-            up = rotateVector(up, direction, -angle);
-            right = rotateVector(right, direction, -angle);
-        } else if (char === "[") {
-            stack.push({
-                position: [...position],
-                direction: [...direction],
-                up: [...up],
-                right: [...right],
-                parentId: currentParentId,
-                depth: depth,
-            });
-            depth++;
-        } else if (char === "]") {
-            const state = stack.pop();
-            if (state) {
-                position[0] = state.position[0];
-                position[1] = state.position[1];
-                position[2] = state.position[2];
-                direction = [...state.direction];
-                up = [...state.up];
-                right = [...state.right];
-                currentParentId = state.parentId;
-                depth = state.depth;
-                // Đánh dấu là nhánh mới bắt đầu
-                if (segments.length > 0) {
-                    segments[segments.length - 1].isBranchStart = true;
+        switch (char) {
+            case "F": {
+                const nextPos = turtle.moveForward(segmentLength);
+                segments.push({
+                    A: [...turtle.position],
+                    B: nextPos,
+                    parentId: turtle.parentId,
+                    depth: turtle.depth,
+                    isBranchStart: false,
+                });
+                turtle.position = nextPos;
+                turtle.parentId = segmentId++;
+                break;
+            }
+            case "+": {
+                turtle.turnLeft(angle);
+                break;
+            }
+            case "-": {
+                turtle.turnRight(angle);
+                break;
+            }
+            case "&": {
+                turtle.pitchDown(angle);
+                break;
+            }
+            case "^": {
+                turtle.pitchUp(angle);
+                break;
+            }
+            case "\\": {
+                turtle.rollLeft(angle);
+                break;
+            }
+            case "/": {
+                turtle.rollRight(angle);
+                break;
+            }
+            case "|": {
+                turtle.turnLeft(Math.PI); // 180 degree turn
+                break;
+            }
+            case "[": {
+                stack.push(turtle.copy());
+                turtle.depth++;
+                break;
+            }
+            case "]": {
+                const state = stack.pop();
+                if (state) {
+                    turtle = state;
+                    // Mark next segment as branch start
+                    if (segments.length > 0) {
+                        segments[segments.length - 1].isBranchStart = true;
+                    }
                 }
+                break;
             }
         }
     }
@@ -132,21 +217,30 @@ export function generateLSystemSegments(
     return segments;
 }
 
-export function packSegments(segments) {
+export function packSegments(segments: Segment[]) {
     const points: number[] = [];
     const meta: number[] = [];
   
     for (const seg of segments) {
-        
-        console.log(seg.A[2],seg.B[2])
-        points.push(...seg.A, ...seg.B); // vec3[] to x,y,z,...
+
+   //     console.log(`Segment: A[${seg.A[0].toFixed(2)}, ${seg.A[1].toFixed(2)}, ${seg.A[2].toFixed(2)}] -> B[${seg.B[0].toFixed(2)}, ${seg.B[1].toFixed(2)}, ${seg.B[2].toFixed(2)}]`);
+        let oo = 0
+        if(seg.depth === 0){
+            oo = .1
+        }else if(seg.depth === 1){
+            oo = .2
+        }else if(seg.depth === 2){
+            oo = .2
+        }else{
+            oo = .3
+        }
+        points.push(...seg.A, ...seg.B);
         meta.push(
-            seg.parentId ?? -1,
-            seg.depth ?? 0,
-            seg.isBranchStart ? 1 : 0, // ✅ đúng key
+            seg.parentId ?? 9999,
+           oo,
+            seg.isBranchStart ? 1 : 0,
             0
         );
-
     }
  
     return {

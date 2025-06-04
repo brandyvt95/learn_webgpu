@@ -15,7 +15,7 @@ export class OrbitCamera {
   public minDistance: number = 1;
   public distanceStep: number = 0.005;
   public constrainDistance: boolean = false;
-  private targetDistance: number = 10;
+  private targetDistance: number = 1;
 
   public modelMatrix: Float32Array = mat4.create();
   public projectionMatrix: Float32Array = mat4.create();

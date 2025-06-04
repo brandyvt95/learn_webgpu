@@ -43,7 +43,7 @@ export class InitInstancedMesh {
   branchBindGroup: GPUBindGroup
   constructor({ device, presentationFormat, frameBindGroupLayout }: InitInstancedMeshOptions) {
     this.device = device;
-    this.numInstances = 2000
+    this.numInstances = 20000
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -87,12 +87,12 @@ export class InitInstancedMesh {
       entries: [
         {
           binding: 0, // Points
-          visibility: GPUShaderStage.VERTEX,
+          visibility: GPUShaderStage.VERTEX ,
           buffer: { type: "read-only-storage" },
         },
         {
           binding: 1, // Segment meta
-          visibility: GPUShaderStage.VERTEX,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
           buffer: { type: "read-only-storage" },
         },
       ],
@@ -279,13 +279,13 @@ export class InitInstancedMesh {
   }
 
   createMesh() {
-    const segments = generateLSystemSegments(
-      "F",
-      { F: "F[+F]F[-F]F" },
-      3,
-      25,
-      1
-    );
+  const segments = generateLSystemSegments(
+    "F",
+    { F: "FF+[+F-F-F]-[-&F+F+&F+[-&F-&F-&F-F]]" }, // thêm pitch movements
+    3,
+    -15,
+    .5
+);
     const { points, meta: segmentMeta } = packSegments(segments);
     const sample = new Float32Array([
       0,0,0,
@@ -293,7 +293,7 @@ export class InitInstancedMesh {
       1,1,1,
       2,2,0,
     ]) 
-   
+    console.log(points)
     const pointsBuffer = this.device.createBuffer({
       size: points.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -318,7 +318,7 @@ export class InitInstancedMesh {
         },
       ],
     });
-    console.log("pointsBuffer", points);
+    console.log("segmentMeta", segmentMeta);
  
     // Create a vertex buffer from the cube data.
     this.verticesBuffer = this.device.createBuffer({

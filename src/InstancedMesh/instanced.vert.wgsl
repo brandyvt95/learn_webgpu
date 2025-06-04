@@ -25,6 +25,7 @@ struct VertexOutput {
   @builtin(position) Position : vec4f,
   @location(0) fragUV : vec2f,
   @location(1) fragPosition: vec4f,
+ @location(2) @interpolate(flat) instanceIdx: u32,
 }
 
 @group(0) @binding(0) var<uniform> camera_uniforms: CameraUniforms;
@@ -68,7 +69,7 @@ let right = normalize(cross(forward, up));
 let actualUp = normalize(cross(right, forward));  // ✅ Tính lại up chính xác
     
     // Scale cube theo thời gian: từ 0 đến segmentLength
-    let currentLength = segmentLength * uTime * 0.1;
+    let currentLength = mix(0.,segmentLength,clamp(0.,1.,uTime * .2)) ;
     
     let scaledPos = vec3<f32>(
         position.x * 0.05,  // thickness cố định
@@ -81,17 +82,17 @@ let actualUp = normalize(cross(right, forward));  // ✅ Tính lại up chính x
     let center = A + forward * (currentLength * 0.5);
     
     // Transform cube position
-    let worldPos = center + 
+    var worldPos = center + 
         right * scaledPos.x + 
         forward * scaledPos.y + 
         actualUp * scaledPos.z;
-    
+    worldPos.y -= 4.5;
   output.Position = camera_uniforms.projectionMatrix *
                     camera_uniforms.viewMatrix *
                     vec4<f32>(worldPos  * .1, 1.0);
 
   output.fragUV = uv;
   output.fragPosition = 0.5 * (position + vec4(1.0));
-
+  output.instanceIdx = instanceIdx;
   return output;
 }
