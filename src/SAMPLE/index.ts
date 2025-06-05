@@ -1,19 +1,19 @@
-import groundWGSL from '../shaders/ground.wgsl'; // cách import raw text (tuỳ config bundler)
+import sample from '../shaders/sample.wgsl'; 
 
-interface GroundOptions {
+interface SampleOptions {
   device: GPUDevice;
   presentationFormat: GPUTextureFormat;
 }
 
-export class InitModelSkin {
+export class Sample {
     device: GPUDevice;
     pipeline: GPURenderPipeline;
-   
-    constructor({device,presentationFormat}: GroundOptions) {
+    presentationFormat:any
+    constructor({device,presentationFormat}: SampleOptions) {
         this.device = device;
-
+        this.presentationFormat = presentationFormat
         this.createPipeline();
-        this.creatUniform()
+        this.creatBuffer()
         this.createMesh();
 
     }
@@ -21,7 +21,7 @@ export class InitModelSkin {
     createPipeline() {
        
     }
-    creatUniform() {
+    creatBuffer() {
        
     }
     createMesh() {

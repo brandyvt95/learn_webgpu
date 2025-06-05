@@ -116,15 +116,33 @@ fn main(
 
 
       
+ // Mỗi depth sẽ được "kéo dài" sau 2 giây
+  let delayPerDepth = .1;
+
+  // Thời gian kéo dài của mỗi instance (ví dụ 0.5s hoặc tùy bạn)
+  let durationPerInstance = 0.5;
+
+  // Thời gian bắt đầu của instance này = depth * delay
+  let startTime = f32(instanceIdx) * delayPerDepth;
+
+  // Thời gian kết thúc
+  let endTime = startTime + durationPerInstance;
+
+  // Tiến trình kéo dài (progress: 0..1)
+  let progress = clamp((uTime - startTime) / durationPerInstance, 0.0, 1.0);
+
+  // Độ dài hiện tại của instance
+  let currentLength = mix(0.0, segmentLength, progress);
+      
     let scaledPos = vec3<f32>(
-        position.x * 1.,  // thickness cố định
-        position.y * 1. * 0.5,  // length từ 0 đến segmentLength/2
-        position.z * 1.   // thickness cố định
+        position.x * 0.05,  // thickness cố định
+        position.y * currentLength * 0.5,  // length từ 0 đến segmentLength/2
+        position.z * 0.05   // thickness cố định
     );
     
     // ✅ QUAN TRỌNG: Center luôn cách A một khoảng currentLength/2
     // Cube sẽ bắt đầu tại A, mở rộng về phía B
-    let center = A + forward * (1. * 0.5);
+    let center = A + forward * (currentLength * 0.5);
     
     // Transform cube position
     var worldPos = center + 

@@ -18,6 +18,7 @@ import { COMMON_DEPTH_MSAA_DESC } from './contrast.js';
 import { createEnvironmentSampler, createLightBuffer } from './utils.js';
 import { ManagerBuffer } from './manager_buffer.js';
 import { InitInstancedMesh } from './InstancedMesh/index.js';
+import { Sample } from './SAMPLE/index.js';
 
 
 export interface Renderables {
@@ -234,7 +235,13 @@ async function main({
     cubemapTexture: CORE_ASSETS.textures["cubemap_texture"],
     frameBindGroupLayout: frameBindGroupLayout
   });
-  const LIST_PIPLINE = [ground/* , enviromentCube */,instanced]
+
+  const mutilDrawSample =  new Sample({
+        device: CORE_ENGINE.device,
+    presentationFormat: CORE_ENGINE.format.presentationFormat,
+    frameBindGroupLayout:frameBindGroupLayout
+  })
+  const LIST_PIPLINE = [ground/* , enviromentCube */,instanced,mutilDrawSample]
   const {
     depthTexture,
     depthTextureMSAA,
@@ -298,6 +305,8 @@ async function main({
     {
       const timeValue = new Float32Array([then]);
       const scenePass = commandEncoder.beginRenderPass(sceneRenderPassDesc);
+
+  
       for (let i = 0; i < LIST_PIPLINE.length; i++) {
         LIST_PIPLINE[i].draw({
           renderPass: scenePass,

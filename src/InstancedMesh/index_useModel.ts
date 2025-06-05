@@ -134,7 +134,7 @@ export class InitInstancedMesh {
         }),
         buffers: [
           {
-           /*  arrayStride: 12,
+            arrayStride: 12,
             attributes: [
               {
                 // position
@@ -148,8 +148,8 @@ export class InitInstancedMesh {
                 offset: 0,
                 format: 'float32x2',
               },
-            ], */
-             arrayStride: cubeVertexSize,
+            ],
+          /*    arrayStride: cubeVertexSize,
             attributes: [
               {
                 // position
@@ -163,7 +163,7 @@ export class InitInstancedMesh {
                 offset: cubeUVOffset,
                 format: 'float32x2',
               },
-            ],
+            ], */
           },
         ],
       },
@@ -199,31 +199,31 @@ export class InitInstancedMesh {
   createInstanceShape() {
 
 
-    // const bufferVertexShape = this.gltf.children[0].geometry[0].geometry.vertexBuffers[0]
-    // this.verticesBuffer = bufferVertexShape.buffer
+    const bufferVertexShape = this.gltf.children[0].geometry[0].geometry.vertexBuffers[0]
+    this.verticesBuffer = bufferVertexShape.buffer
     
-    // const indexBufferShape =  this.gltf.children[0].geometry[0].geometry.indexBuffer
-    //  this.indexBuffer = indexBufferShape.buffer
+    const indexBufferShape =  this.gltf.children[0].geometry[0].geometry.indexBuffer
+     this.indexBuffer = indexBufferShape.buffer
 
 
-    this.verticesBuffer = this.device.createBuffer({
-      size: cubeVertexArray.byteLength,
-      usage: GPUBufferUsage.VERTEX,
-      mappedAtCreation: true,
-    });
-    new Float32Array(this.verticesBuffer.getMappedRange()).set(cubeVertexArray);
-    this.verticesBuffer.unmap();
+    // this.verticesBuffer = this.device.createBuffer({
+    //   size: cubeVertexArray.byteLength,
+    //   usage: GPUBufferUsage.VERTEX,
+    //   mappedAtCreation: true,
+    // });
+    // new Float32Array(this.verticesBuffer.getMappedRange()).set(cubeVertexArray);
+    // this.verticesBuffer.unmap();
 
 
-    if (cubeIndices.length > 0) {
-      this.indexBuffer = this.device.createBuffer({
-        size: cubeIndices.byteLength,
-        usage: GPUBufferUsage.INDEX,
-        mappedAtCreation: true,
-      });
-      new Uint16Array(this.indexBuffer.getMappedRange()).set(cubeIndices);
-      this.indexBuffer.unmap();
-    }
+    // if (cubeIndices.length > 0) {
+    //   this.indexBuffer = this.device.createBuffer({
+    //     size: cubeIndices.byteLength,
+    //     usage: GPUBufferUsage.INDEX,
+    //     mappedAtCreation: true,
+    //   });
+    //   new Uint16Array(this.indexBuffer.getMappedRange()).set(cubeIndices);
+    //   this.indexBuffer.unmap();
+    // }
 
 
   }
@@ -480,7 +480,7 @@ export class InitInstancedMesh {
     renderPass.setVertexBuffer(0, this.verticesBuffer);
      renderPass.setIndexBuffer(this.indexBuffer, "uint16");
     renderPass.drawIndexed(
-      cubeIndexCount,     // indexCount = 36 (số indices)
+      1260,     // indexCount = 36 (số indices)
       this.numInstances,  // instanceCount  
       0,                  // firstIndex
       0,                  // baseVertex
