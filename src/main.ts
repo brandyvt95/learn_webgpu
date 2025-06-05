@@ -106,6 +106,11 @@ const ASSETS_DESC = {
       name: 'dragon_model',
       type: 'gltf',
       url: '/src/assets/model/dragon_2.glb'
+    },
+    {
+      name: 'leaf_model',
+      type: 'gltf',
+      url: '/src/assets/model/leaf.gltf'
     }
   ]
 }
@@ -138,7 +143,7 @@ async function main({
   CORE_ENGINE,
   MONITOR
 }) {
-
+  console.log(CORE_ASSETS)
   createGUIGlobal()
 
   let coutnFrame = 0
@@ -209,11 +214,13 @@ async function main({
 
 
 
-
+  let result2 = CORE_ASSETS.models.leaf_model
+  
   const instanced = new InitInstancedMesh({
       device: CORE_ENGINE.device,
-    presentationFormat: CORE_ENGINE.format.presentationFormat,
-     frameBindGroupLayout: frameBindGroupLayout
+      presentationFormat: CORE_ENGINE.format.presentationFormat,
+     frameBindGroupLayout: frameBindGroupLayout,
+       gltf: result2.scene,
   })
   const ground = new InitGround({
     device: CORE_ENGINE.device,

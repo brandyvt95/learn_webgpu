@@ -229,15 +229,15 @@ export function packSegments(segments: Segment[]) {
         points.push(...seg.A, ...seg.B);
         meta.push(
             seg.parentId ?? 9999,
-          seg.depth,
+            seg.depth,
             seg.isBranchStart ? 1 : 0,
-            0.5
+            Math.random()
         );
     }
  
     return {
         list:segments,
         points: new Float32Array(points),
-        meta: new Float32Array(meta),
+        meta: new Uint32Array(meta),
     };
 }

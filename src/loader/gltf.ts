@@ -226,10 +226,12 @@ export class GltfLoader {
           };
 
           primitiveDescriptor.drawCount = accessor.count;
+             
         }
 
         if ('indices' in primitive) {
           const accessor = gltf.accessors[primitive.indices];
+           console.log( accessor)
           const bufferView = gltf.bufferViews[accessor.bufferView];
           primitiveDescriptor.indices = {
             values: bufferView.extras.gpu.buffer,
@@ -237,6 +239,7 @@ export class GltfLoader {
             format: gpuIndexFormatForComponentType(accessor.componentType),
           };
           primitiveDescriptor.drawCount = accessor.count;
+      
         }
 
         const renderMesh = {

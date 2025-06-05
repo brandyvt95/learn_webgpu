@@ -25,8 +25,7 @@ import { generateLSystemSegments, packSegments } from './utils';
 interface InitInstancedMeshOptions {
   device: GPUDevice;
   presentationFormat: GPUTextureFormat;
-  frameBindGroupLayout: GPUBindGroupLayout;
-  gltf:any
+  frameBindGroupLayout: GPUBindGroupLayout
 }
 
 export class InitInstancedMesh {
@@ -134,18 +133,18 @@ export class InitInstancedMesh {
         }),
         buffers: [
           {
-            arrayStride: 12,
+            arrayStride: cubeVertexSize,
             attributes: [
               {
                 // position
                 shaderLocation: 0,
-                offset: 0,
-                format: 'float32x3',
+                offset: cubePositionOffset,
+                format: 'float32x4',
               },
               {
                 // uv
                 shaderLocation: 1,
-                offset: 0,
+                offset: cubeUVOffset,
                 format: 'float32x2',
               },
             ],
@@ -185,10 +184,24 @@ export class InitInstancedMesh {
 
 
     const bufferVertexShape = this.gltf.children[0].geometry[0].geometry.vertexBuffers[0]
-    this.verticesBuffer = bufferVertexShape.buffer
-    
-    const indexBufferShape =  this.gltf.children[0].geometry[0].geometry.indexBuffer
-     this.indexBuffer = indexBufferShape.buffer
+    this.verticesBuffer = this.device.createBuffer({
+      size: cubeVertexArray.byteLength,
+      usage: GPUBufferUsage.VERTEX,
+      mappedAtCreation: true,
+    });
+    new Float32Array(this.verticesBuffer.getMappedRange()).set(cubeVertexArray);
+    this.verticesBuffer.unmap();
+
+
+    if (cubeIndices.length > 0) {
+      this.indexBuffer = this.device.createBuffer({
+        size: cubeIndices.byteLength,
+        usage: GPUBufferUsage.INDEX,
+        mappedAtCreation: true,
+      });
+      new Uint16Array(this.indexBuffer.getMappedRange()).set(cubeIndices);
+      this.indexBuffer.unmap();
+    }
 
 
 
@@ -445,9 +458,9 @@ export class InitInstancedMesh {
     renderPass.setBindGroup(3, this.branchBindGroup);
     //  renderPass.setBindGroup(4, this.modelMatrixBindGroup);
     renderPass.setVertexBuffer(0, this.verticesBuffer);
-     renderPass.setIndexBuffer(this.indexBuffer, "uint16");
+    renderPass.setIndexBuffer(this.indexBuffer, "uint16");
     renderPass.drawIndexed(
-      1260,     // indexCount = 36 (số indices)
+      cubeIndexCount,     // indexCount = 36 (số indices)
       this.numInstances,  // instanceCount  
       0,                  // firstIndex
       0,                  // baseVertex
