@@ -32,7 +32,7 @@ struct VertexOutput {
 @group(1) @binding(0) var<uniform> uTime: f32;
 @group(2) @binding(0) var<storage, read> points: array<vec3<f32>>;
 @group(3) @binding(0) var<storage, read> pointss: array<f32>;
-@group(3) @binding(1) var<storage, read> segmentMeta: array<vec4<u32>>;
+@group(3) @binding(1) var<storage, read> segmentMeta: array<f32>;
 
 @vertex
 fn main(
@@ -43,6 +43,25 @@ fn main(
   var output : VertexOutput;
   
 let baseIndex = instanceIdx * 6u;
+let baseIndexMeta = instanceIdx * 4u;
+
+let parentId     = segmentMeta[baseIndexMeta + 0u];
+let depth  = segmentMeta[baseIndex + 1u];
+
+let categories = array<f32, 3>(
+  1.0, // cho baseIndex < 864
+  2.0, // cho 864 <= baseIndex < 1000
+  3.0  // cho 1000 <= baseIndex < 1200
+);
+
+
+var categoryIndex: u32 = 0u;
+if (baseIndex <= 96u) {
+  categoryIndex = 1u;
+}
+if (baseIndex > 96u && baseIndex <= 180u) {
+  categoryIndex = 2u;
+}
 
 let A = vec3<f32>(
   pointss[baseIndex + 0u],
@@ -59,37 +78,42 @@ let B = vec3<f32>(
 let segmentLength = length(direction);
 let forward = normalize(direction);
 
-// ✅ Dùng world coordinate system cố định
-// Tìm trục có thành phần nhỏ nhất trong forward
-let absForward = abs(forward);
-var right = vec3(0.0);
-
-if (absForward.x <= absForward.y && absForward.x <= absForward.z) {
-    // X component nhỏ nhất
-    right = vec3(1.0, 0.0, 0.0);
-} else if (absForward.y <= absForward.z) {
-    // Y component nhỏ nhất  
-    right = vec3(0.0, 1.0, 0.0);
-} else {
-    // Z component nhỏ nhất
-    right = vec3(0.0, 0.0, 1.0);
+// ✅ Chọn up vector tự động tránh parallel
+var up = vec3<f32>(0.0, 1.0, 0.0);
+if (abs(dot(forward, up)) > 0.9) {  // Nếu gần song song
+    up = vec3<f32>(1.0, 0.0, 0.0);  // Dùng trục X thay thế
 }
 
-// Gram-Schmidt
-right = normalize(right - dot(right, forward) * forward);
-let actualUp = cross(forward, right);
+let right = normalize(cross(forward, up));
+let actualUp = normalize(cross(right, forward)); 
 
-    // Scale cube theo thời gian: từ 0 đến segmentLength
-    let currentLength = mix(0.,segmentLength,clamp(0.,1.,uTime * .2)) ;
+
+// Mỗi depth sẽ được "kéo dài" sau 2 giây
+let delayPerDepth = 1.0;
+
+// Thời gian kéo dài của mỗi instance (ví dụ 0.5s hoặc tùy bạn)
+let durationPerInstance = 0.5;
+
+// Thời gian bắt đầu của instance này = depth * delay
+let startTime = f32(instanceIdx) * delayPerDepth;
+
+// Thời gian kết thúc
+let endTime = startTime + durationPerInstance;
+
+// Tiến trình kéo dài (progress: 0..1)
+let progress = clamp((uTime - startTime) / durationPerInstance, 0.0, 1.0);
+
+// Độ dài hiện tại của instance
+let currentLength = mix(0.0, segmentLength, progress);
+
+
+
     
     let scaledPos = vec3<f32>(
-        position.x * 0.1,  // thickness cố định
-        position.y * currentLength * 0.5,  // length từ 0 đến segmentLength/2
-        position.z * 0.1   // thickness cố định
+        position.x * 0.05,  // thickness cố định
+        position.y * currentLength * 0.5, 
+        position.z * 0.05 
     );
-    
-    // ✅ QUAN TRỌNG: Center luôn cách A một khoảng currentLength/2
-    // Cube sẽ bắt đầu tại A, mở rộng về phía B
     let center = A + forward * (currentLength * 0.5);
     
     // Transform cube position
@@ -97,9 +121,11 @@ let actualUp = cross(forward, right);
         right * scaledPos.x + 
         forward * scaledPos.y + 
         actualUp * scaledPos.z;
-    worldPos.y -= 4.5;
+
+    //worldPos.x += f32(categoryIndex) * 10.;
   output.Position = camera_uniforms.projectionMatrix *
                     camera_uniforms.viewMatrix *
+                    camera_uniforms.modelMatrix *
                     vec4<f32>(worldPos  * .1, 1.0);
 
   output.fragUV = uv;

@@ -15,7 +15,7 @@ export class OrbitCamera {
   public minDistance: number = 1;
   public distanceStep: number = 0.005;
   public constrainDistance: boolean = false;
-  private targetDistance: number = 1;
+  private targetDistance: number = 2;
 
   public modelMatrix: Float32Array = mat4.create();
   public projectionMatrix: Float32Array = mat4.create();
@@ -82,7 +82,7 @@ export class OrbitCamera {
 
     const wheelCallback = (event: WheelEvent): void => {
       //this.distance = this.distance_[2] + (event.deltaY * this.distanceStep * 4.3);
-      const delta = event.deltaY * this.distanceStep * 4.3;
+      const delta = event.deltaY * this.distanceStep * 0.3;
       this.targetDistance = this.distance_[2] + delta;
 
       event.preventDefault();

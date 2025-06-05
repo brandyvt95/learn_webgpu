@@ -1,13 +1,23 @@
 import { mat4, Mat4, vec3 } from 'wgpu-matrix';
 
+// import {
+//   cubeVertexArray,
+//   cubeVertexSize,
+//   cubeUVOffset,
+//   cubePositionOffset,
+//   cubeVertexCount,
+//   cubeIndices,
+//   cubeIndexCount,
+// } from '../meshes/cube';
 import {
   cubeVertexArray,
   cubeVertexSize,
   cubeUVOffset,
   cubePositionOffset,
   cubeVertexCount,
-} from '../meshes/cube';
-
+  // cubeIndices,
+  // cubeIndexCount,
+} from '../meshes/cubeOri';
 import instancedVertWGSL from './instanced.vert.wgsl';
 import vertexPositionColorWGSL from './frag.wgsl'
 import { generateLSystemSegments, packSegments } from './utils';
@@ -30,7 +40,7 @@ export class InitInstancedMesh {
   modelMatrixBuffer: any
   modelMatrixBindGroup: GPUBindGroup
 
-
+  indexBuffer: GPUBuffer
   pointsBuffer: GPUBuffer
   pointsBindGroup: GPUBindGroup
   pointsBindGroupLayout: GPUBindGroupLayout
@@ -43,7 +53,7 @@ export class InitInstancedMesh {
   branchBindGroup: GPUBindGroup
   constructor({ device, presentationFormat, frameBindGroupLayout }: InitInstancedMeshOptions) {
     this.device = device;
-    this.numInstances = 20000
+    this.numInstances = 64
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -87,7 +97,7 @@ export class InitInstancedMesh {
       entries: [
         {
           binding: 0, // Points
-          visibility: GPUShaderStage.VERTEX ,
+          visibility: GPUShaderStage.VERTEX,
           buffer: { type: "read-only-storage" },
         },
         {
@@ -100,10 +110,10 @@ export class InitInstancedMesh {
 
     const pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
-        this.frameBindGroupLayout,  
-        this.timeBindGroupLayout, 
+        this.frameBindGroupLayout,
+        this.timeBindGroupLayout,
         this.pointsBindGroupLayout,
-         this.branchBindGroupLayout]
+        this.branchBindGroupLayout]
     });
     this.pipeline = this.device.createRenderPipeline({
 
@@ -148,7 +158,8 @@ export class InitInstancedMesh {
         // Backface culling since the cube is solid piece of geometry.
         // Faces pointing away from the camera will be occluded by faces
         // pointing toward the camera.
-        cullMode: 'back',
+        cullMode: 'none',           // QUAN TRỌNG: bật face culling
+        frontFace: 'ccw',
       },
 
       // Enable depth testing so that the fragment closest to the camera
@@ -279,32 +290,42 @@ export class InitInstancedMesh {
   }
 
   createMesh() {
-  const segments = generateLSystemSegments(
-    "F",
-    { F: "FF+[+F-F-F]-[-&F+F+&F+[-&F-&F-&F-F]]" }, // thêm pitch movements
-    3,
-    -15,
-    .5
-);
-    const { points, meta: segmentMeta } = packSegments(segments);
-    const sample = new Float32Array([
-      0,0,0,
-      0,1,0,
-      1,1,1,
-      2,2,0,
-    ]) 
-    console.log(points)
+    const segments1 = generateLSystemSegments(
+      "F",
+      { F: "FF+[+F-F]-[-F+F]" }, // thêm pitch movements
+      2,
+      -50,
+      1
+    );
+
+    const segments2 = generateLSystemSegments(
+      "F",
+      { F: "FF-[+F-F-F]-[+&F+[-&F-F]]" }, // thêm pitch movements
+      2,
+      -15,
+      1
+    );
+
+    console.time()
+    const { points: point1, meta: segmentMeta1 ,list } = packSegments(segments1);
+    const { points: point2, meta: segmentMeta2 } = packSegments(segments2);
+    console.timeEnd()
+
+    const resultPoint = new Float32Array(point1.length + point2.length);
+    resultPoint.set(point1, 0);
+    resultPoint.set(point2, point1.length);
+    console.log(list,point1,27*6)
     const pointsBuffer = this.device.createBuffer({
-      size: points.byteLength,
+      size: point1.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    this.device.queue.writeBuffer(pointsBuffer, 0, points);
+    this.device.queue.writeBuffer(pointsBuffer, 0, point1);
 
     const segmentMetaBuffer = this.device.createBuffer({
-      size: segmentMeta.byteLength,
+      size: segmentMeta1.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    this.device.queue.writeBuffer(segmentMetaBuffer, 0, segmentMeta);
+    this.device.queue.writeBuffer(segmentMetaBuffer, 0, segmentMeta1);
     this.branchBindGroup = this.device.createBindGroup({
       layout: this.branchBindGroupLayout,
       entries: [
@@ -318,9 +339,7 @@ export class InitInstancedMesh {
         },
       ],
     });
-    console.log("segmentMeta", segmentMeta);
- 
-    // Create a vertex buffer from the cube data.
+
     this.verticesBuffer = this.device.createBuffer({
       size: cubeVertexArray.byteLength,
       usage: GPUBufferUsage.VERTEX,
@@ -328,6 +347,17 @@ export class InitInstancedMesh {
     });
     new Float32Array(this.verticesBuffer.getMappedRange()).set(cubeVertexArray);
     this.verticesBuffer.unmap();
+
+    // this.indexBuffer = this.device.createBuffer({
+    //   size: cubeIndices.byteLength,
+    //   usage: GPUBufferUsage.INDEX,
+    //   mappedAtCreation: true,
+    // });
+    // new Uint16Array(this.indexBuffer.getMappedRange()).set(cubeIndices);
+    // this.indexBuffer.unmap();
+
+
+
   }
 
   draw({ renderPass, frameBindGroup, timeValue }: { renderPass: GPURenderPassEncoder, frameBindGroup: GPUBindGroup, timeValue: any }) {
@@ -345,6 +375,14 @@ export class InitInstancedMesh {
     renderPass.setBindGroup(2, this.pointsBindGroup);
     renderPass.setBindGroup(3, this.branchBindGroup);
     renderPass.setVertexBuffer(0, this.verticesBuffer);
+    // renderPass.setIndexBuffer(this.indexBuffer, "uint16");
+    // renderPass.drawIndexed(
+    //   cubeIndexCount,     // indexCount = 36 (số indices)
+    //   this.numInstances,  // instanceCount  
+    //   0,                  // firstIndex
+    //   0,                  // baseVertex
+    //   0                   // firstInstance
+    // );
     renderPass.draw(cubeVertexCount, this.numInstances, 0, 0);
   }
 }

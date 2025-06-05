@@ -220,30 +220,23 @@ export function generateLSystemSegments(
 export function packSegments(segments: Segment[]) {
     const points: number[] = [];
     const meta: number[] = [];
-  
+   //  segments.sort((a, b) => a.depth - b.depth);
+    console.log("length seg" ,segments.length)
     for (const seg of segments) {
 
    //     console.log(`Segment: A[${seg.A[0].toFixed(2)}, ${seg.A[1].toFixed(2)}, ${seg.A[2].toFixed(2)}] -> B[${seg.B[0].toFixed(2)}, ${seg.B[1].toFixed(2)}, ${seg.B[2].toFixed(2)}]`);
-        let oo = 0
-        if(seg.depth === 0){
-            oo = .1
-        }else if(seg.depth === 1){
-            oo = .2
-        }else if(seg.depth === 2){
-            oo = .2
-        }else{
-            oo = .3
-        }
+
         points.push(...seg.A, ...seg.B);
         meta.push(
             seg.parentId ?? 9999,
-           oo,
+          seg.depth,
             seg.isBranchStart ? 1 : 0,
-            0
+            0.5
         );
     }
  
     return {
+        list:segments,
         points: new Float32Array(points),
         meta: new Float32Array(meta),
     };
