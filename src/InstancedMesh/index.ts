@@ -20,7 +20,8 @@ import {
 // } from '../meshes/cubeOri';
 import instancedVertWGSL from './instanced.vert.wgsl';
 import vertexPositionColorWGSL from './frag.wgsl'
-import { generateLSystemSegments, packSegments } from './utils';
+import { generateLSystemSegments } from './Lsystem/utils';
+import { packSegments } from './Lsystem/packSegments';
 
 interface InitInstancedMeshOptions {
   device: GPUDevice;
@@ -57,14 +58,14 @@ export class InitInstancedMesh {
   constructor({ device, presentationFormat, frameBindGroupLayout,gltf }: InitInstancedMeshOptions) {
     this.device = device;
     this.gltf = gltf
-    this.numInstances = 36
+    this.numInstances = 100
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
-
+  
     this.createPipeline();
     this.createBuffersSamplePoint()
     this.createInstanceShape();
-    this.createBufferLsystem()
+      this.createBufferLsystem()
     this.createBuffersMatrixRand()
   }
 
@@ -374,13 +375,21 @@ export class InitInstancedMesh {
     });
   }
   createBufferLsystem() {
-    const segments1 = generateLSystemSegments(
-      "F",
-      { F: "F[+&F][-^F][+/F][-\\F]F" }, // thêm pitch movements
-      2,
-      45,
-      2
-    );
+
+    const config: any = {
+    axiom: "F",
+    rules: {
+      "F": "F[+&F[H]][-F[H]]F",
+      "H": "H"
+    },
+    iterations: 2,
+    angle: 25,
+    stepSize: 1,
+    branchReduction: 0.7,
+    randomFactor: 0.8
+  };
+
+    const segments1 = generateLSystemSegments(config);
 
 
     console.time()
@@ -392,7 +401,7 @@ export class InitInstancedMesh {
     const resultPoint = this.mergerBuffer([point1], 'float32');
     const resultMeta = this.mergerBuffer([segmentMeta1], 'uint32');
 
-    console.log(resultPoint,resultMeta)
+    //console.log(resultPoint,resultMeta)
     const pointsBuffer = this.device.createBuffer({
       size: resultPoint.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -418,11 +427,11 @@ export class InitInstancedMesh {
       categoryBounds.push(last + buffers[i].length);
     }
 
-    console.log(categoryBounds, resultPoint, resultPoint.length);
+    //console.log(categoryBounds, resultPoint, resultPoint.length);
     const extrasMeta = new Uint32Array(categoryBounds.length + 1);
     extrasMeta[0] = categoryBounds.length;
     extrasMeta.set(categoryBounds, 1);
-    console.log("extrasMeta", extrasMeta)
+    //console.log("extrasMeta", extrasMeta)
     const extrasMetaBuffer = this.device.createBuffer({
       size: extrasMeta.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,

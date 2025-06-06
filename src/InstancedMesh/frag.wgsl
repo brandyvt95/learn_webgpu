@@ -8,11 +8,11 @@ fn main(
 ) -> @location(0) vec4 < f32> {
   let metac = segmentMeta[instanceIdx];
   let parentId = f32(metac.x);
-  let depth = f32(metac.y) / 2.;
+  let depth = f32(metac.y) / 3.;
   let isBranchStart = f32(metac.z);
 
   var color : vec3 < f32>;
   color = vec3 < f32 > (isBranchStart, 0.0, 0.0);
 
-  return vec4 < f32 > (vec3f(depth), 1.0);
+  return vec4 < f32 > (vec3f(depth) * vec3f(fragUV,1.), 1.0);
 }

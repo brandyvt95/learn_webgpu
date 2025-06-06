@@ -20,7 +20,7 @@ import {
 // } from '../meshes/cubeOri';
 import instancedVertWGSL from './instanced.vert.wgsl';
 import vertexPositionColorWGSL from './frag.wgsl'
-import { generateLSystemSegments, packSegments } from './utils';
+import { generateLSystemSegments, packSegments } from './Lsystem/utils';
 
 interface InitInstancedMeshOptions {
   device: GPUDevice;

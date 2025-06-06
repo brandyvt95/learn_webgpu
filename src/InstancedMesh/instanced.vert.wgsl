@@ -71,8 +71,8 @@ fn main(
       let randX = randomFromSeed(seed);
       let randZ = randomFromSeed(seed + 1u); // Đổi seed một chút để không giống nhau
 
-      clusterCoord.x += randX * 10.0;
-      clusterCoord.z += randZ * 10.0;
+     // clusterCoord.x += randX * 10.0;
+      //clusterCoord.z += randZ * 10.0;
       break;
     }
   }
@@ -133,13 +133,14 @@ fn main(
 
   // Độ dài hiện tại của instance
   var currentLength = mix(0.0, segmentLength, progress);
-  
-       var sss = f32(segmentMeta[checkId].y) ;
-    sss *= 0.1;
+  currentLength = segmentLength;
+       var sss = f32(segmentMeta[checkId].y) + 1.;
+       sss = 4. - sss;
+    sss *= 1.;
     let scaledPos = vec3<f32>(
-        position.x * .2,  // thickness cố định
+        position.x  * .02,  // thickness cố định
         position.y * currentLength   * 0.5,  // length từ 0 đến segmentLength/2
-        position.z  * .2 // thickness cố định
+        position.z   * .02 // thickness cố định
     );
     
     // ✅ QUAN TRỌNG: Center luôn cách A một khoảng currentLength/2
