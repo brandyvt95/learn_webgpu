@@ -22,12 +22,15 @@ import instancedVertWGSL from './instanced.vert.wgsl';
 import vertexPositionColorWGSL from './frag.wgsl'
 import { generateLSystemSegments } from './Lsystem/utils';
 import { packSegments } from './Lsystem/packSegments';
+import { BoxGeometryDesc } from '../shapes';
+import { applyFK } from './Lsystem/fkCpu';
+import { Segment } from './Lsystem/type';
 
 interface InitInstancedMeshOptions {
   device: GPUDevice;
   presentationFormat: GPUTextureFormat;
   frameBindGroupLayout: GPUBindGroupLayout;
-  gltf:any
+  gltf: any
 }
 
 export class InitInstancedMesh {
@@ -54,18 +57,19 @@ export class InitInstancedMesh {
   branchBindGroupLayout: GPUBindGroupLayout
   branchBindGroup: GPUBindGroup
 
-  gltf:any
-  constructor({ device, presentationFormat, frameBindGroupLayout,gltf }: InitInstancedMeshOptions) {
+  gltf: any
+  segmentsOut:any
+  constructor({ device, presentationFormat, frameBindGroupLayout, gltf }: InitInstancedMeshOptions) {
     this.device = device;
     this.gltf = gltf
-    this.numInstances = 100
+    this.numInstances = 300
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
-  
+
     this.createPipeline();
     this.createBuffersSamplePoint()
     this.createInstanceShape();
-      this.createBufferLsystem()
+    this.createBufferLsystem()
     this.createBuffersMatrixRand()
   }
 
@@ -135,22 +139,22 @@ export class InitInstancedMesh {
         }),
         buffers: [
           {
-           /*  arrayStride: 12,
-            attributes: [
-              {
-                // position
-                shaderLocation: 0,
-                offset: 0,
-                format: 'float32x3',
-              },
-              {
-                // uv
-                shaderLocation: 1,
-                offset: 0,
-                format: 'float32x2',
-              },
-            ], */
-             arrayStride: cubeVertexSize,
+            /*  arrayStride: 12,
+             attributes: [
+               {
+                 // position
+                 shaderLocation: 0,
+                 offset: 0,
+                 format: 'float32x3',
+               },
+               {
+                 // uv
+                 shaderLocation: 1,
+                 offset: 0,
+                 format: 'float32x2',
+               },
+             ], */
+            arrayStride: cubeVertexSize,
             attributes: [
               {
                 // position
@@ -202,10 +206,11 @@ export class InitInstancedMesh {
 
     // const bufferVertexShape = this.gltf.children[0].geometry[0].geometry.vertexBuffers[0]
     // this.verticesBuffer = bufferVertexShape.buffer
-    
+
     // const indexBufferShape =  this.gltf.children[0].geometry[0].geometry.indexBuffer
     //  this.indexBuffer = indexBufferShape.buffer
 
+    const boxInfo = new BoxGeometryDesc()
 
     this.verticesBuffer = this.device.createBuffer({
       size: cubeVertexArray.byteLength,
@@ -377,40 +382,35 @@ export class InitInstancedMesh {
   createBufferLsystem() {
 
     const config: any = {
-    axiom: "F",
-    rules: {
-      "F": "F[+&F[H]][-F[H]]F",
-      "H": "H"
-    },
-    iterations: 2,
-    angle: 25,
-    stepSize: 1,
-    branchReduction: 0.7,
-    randomFactor: 0.8
-  };
+      axiom: "F",
+      rules: {
+      "F": "FF+[+F-&F]-[-F+^F]",
+
+        "H": "H"
+      }
+      ,
+      iterations: 3,
+      angle: 22.5,
+      stepSize: .2,
+      branchReduction: 0.7,
+      randomFactor: 1
+    };
 
     const segments1 = generateLSystemSegments(config);
 
 
-    console.time()
-    const { points: point1, meta: segmentMeta1, origin:origin1 } = packSegments(segments1);
-    // const { points: point2, meta: segmentMeta2 } = packSegments(segments2);
-    // const { points: point3, meta: segmentMeta3 } = packSegments(segments3);
-    console.timeEnd()
-
+    this.segmentsOut = segments1
+    const { points: point1, meta: segmentMeta1, origin: origin1 } = packSegments(segments1);
     const resultPoint = this.mergerBuffer([point1], 'float32');
-    const resultMeta = this.mergerBuffer([segmentMeta1], 'uint32');
-
-    //console.log(resultPoint,resultMeta)
-    const pointsBuffer = this.device.createBuffer({
+    this.pointsBuffer = this.device.createBuffer({
       size: resultPoint.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    this.device.queue.writeBuffer(pointsBuffer, 0, resultPoint);
+    this.device.queue.writeBuffer(this.pointsBuffer, 0, resultPoint);
 
 
 
-
+    const resultMeta = this.mergerBuffer([segmentMeta1], 'uint32');
     const segmentMetaBuffer = this.device.createBuffer({
       size: resultMeta.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -443,7 +443,7 @@ export class InitInstancedMesh {
       entries: [
         {
           binding: 0,
-          resource: { buffer: pointsBuffer },
+          resource: { buffer: this.pointsBuffer },
         },
         {
           binding: 1,
@@ -466,6 +466,10 @@ export class InitInstancedMesh {
       timeValue.byteLength
     );
 
+const animatedSegments = applyFK(this.segmentsOut, timeValue[0]);
+const { points: updatedPoints, meta, origin } = packSegments(animatedSegments as any);
+this.device.queue.writeBuffer(this.pointsBuffer, 0, updatedPoints);
+
     renderPass.setPipeline(this.pipeline);
     renderPass.setBindGroup(0, frameBindGroup);
     renderPass.setBindGroup(1, this.timeBindGroup);
@@ -473,7 +477,7 @@ export class InitInstancedMesh {
     renderPass.setBindGroup(3, this.branchBindGroup);
     //  renderPass.setBindGroup(4, this.modelMatrixBindGroup);
     renderPass.setVertexBuffer(0, this.verticesBuffer);
-     renderPass.setIndexBuffer(this.indexBuffer, "uint16");
+    renderPass.setIndexBuffer(this.indexBuffer, "uint16");
     renderPass.drawIndexed(
       cubeIndexCount,     // indexCount = 36 (số indices)
       this.numInstances,  // instanceCount  

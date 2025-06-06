@@ -1,15 +1,8 @@
 import { flowerType } from "./flower";
+import { getStepSize, interp } from "./helper";
 import { cross, normalize, rotateVector } from "./math";
 import { LSystemConfig, Segment, TurtleState, Vec3 } from "./type";
 
-
-
-function getStepSize(config: LSystemConfig, depth: number, segmentIndex: number): number {
-  const baseLength = config.stepSize * Math.pow(config.branchReduction || 0.8, depth);
-  const length = baseLength * Math.pow(0.85, segmentIndex);
-  const randomFactor = config.randomFactor || 0.3;
-  return length * (0.85 + Math.random() * randomFactor);
-}
 
 export function generateLSystemSegments(config: LSystemConfig): Segment[] {
   let result = config.axiom;
@@ -123,28 +116,25 @@ export function generateLSystemSegments(config: LSystemConfig): Segment[] {
         const petalCount = 6;
         const currentParentId = turtle.parentId;
         const lastSegment = segments[segments.length - 1];
-   
+
         const rand = Math.random()
         let rand2 = .2
 
         for (let i = 0; i < petalCount; i++) {
-          if (rand > .5) rand2 = Math.random() 
+          if (rand > .5) rand2 = Math.random()
           const flowerSize = config.stepSize * rand2;
-
-          const completePos = flowerType({
-            type: 'onSegment',
+          const posPetal = flowerType({
+            posStart:turtle.pos,
+            type: 1,
             turtle: turtle,
             petalCount: petalCount,
             i: i,
-            flowerSize:flowerSize,
-            segment:lastSegment
-          })
-         
-        
-
+            flowerSize: .2,
+            segmentParent: lastSegment,
+          });
           const flowerSegment: Segment = {
-            A: turtle.pos,
-            B: completePos,
+            A: posPetal.posA,
+            B: posPetal.posB,
             parentId: currentParentId,
             depth: turtle.depth,
             isBranchStart: false,

@@ -2,6 +2,21 @@ import {Vec3 } from "./type";
 export function degToRad(deg: number) {
   return (deg * Math.PI) / 180;
 }
+// Cộng vector
+export function add(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+}
+
+// Trừ vector
+export function sub(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+
+// Nhân vector với scalar
+export function mulScalar(v: Vec3, s: number): Vec3 {
+  return [v[0] * s, v[1] * s, v[2] * s];
+}
+
 
 export function normalize(v: Vec3): Vec3 {
   const len = Math.hypot(...v);
@@ -15,7 +30,13 @@ export function cross(a: Vec3, b: Vec3): Vec3 {
     a[0] * b[1] - a[1] * b[0],
   ];
 }
-
+export function lerp(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+    a[2] + (b[2] - a[2]) * t
+  ];
+}
 export function rotateVector(vec: Vec3, axis: Vec3, angleDeg: number): Vec3 {
   const angleRad = degToRad(angleDeg);
    
