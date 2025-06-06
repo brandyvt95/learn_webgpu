@@ -57,7 +57,7 @@ export class InitInstancedMesh {
   constructor({ device, presentationFormat, frameBindGroupLayout,gltf }: InitInstancedMeshOptions) {
     this.device = device;
     this.gltf = gltf
-    this.numInstances = 400
+    this.numInstances = 36
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -378,35 +378,21 @@ export class InitInstancedMesh {
       "F",
       { F: "F[+&F][-^F][+/F][-\\F]F" }, // thêm pitch movements
       2,
-      -25,
-      1
+      45,
+      2
     );
 
-    const segments2 = generateLSystemSegments(
-      "F",
-      { F: "FF+[+&F][-^F][+\\F][-\\/F]" }, // thêm pitch movements
-      2,
-      5,
-      1
-    );
-    const segments3 = generateLSystemSegments(
-      "F",
-      { F: "FFF[+F][-F][+&F]" }, // thêm pitch movements
-      2,
-      25,
-      .1
-    );
 
     console.time()
-    const { points: point1, meta: segmentMeta1, list } = packSegments(segments1);
-    const { points: point2, meta: segmentMeta2 } = packSegments(segments2);
-    const { points: point3, meta: segmentMeta3 } = packSegments(segments3);
+    const { points: point1, meta: segmentMeta1, origin:origin1 } = packSegments(segments1);
+    // const { points: point2, meta: segmentMeta2 } = packSegments(segments2);
+    // const { points: point3, meta: segmentMeta3 } = packSegments(segments3);
     console.timeEnd()
 
-    const resultPoint = this.mergerBuffer([point1, point2, point3], 'float32');
-    const resultMeta = this.mergerBuffer([segmentMeta1, segmentMeta2, segmentMeta3], 'uint32');
+    const resultPoint = this.mergerBuffer([point1], 'float32');
+    const resultMeta = this.mergerBuffer([segmentMeta1], 'uint32');
 
-
+    console.log(resultPoint,resultMeta)
     const pointsBuffer = this.device.createBuffer({
       size: resultPoint.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
@@ -424,7 +410,7 @@ export class InitInstancedMesh {
 
 
     // array dynamic , so add key on 0
-    const buffers = [point1, point2, point3]; // hoặc nhiều hơn
+    const buffers = [point1]; // hoặc nhiều hơn
     const categoryBounds = [0];
 
     for (let i = 0; i < buffers.length; i++) {

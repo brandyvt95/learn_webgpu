@@ -132,12 +132,14 @@ fn main(
   let progress = clamp((uTime - startTime) / durationPerInstance, 0.0, 1.0);
 
   // Độ dài hiện tại của instance
-  let currentLength = mix(0.0, segmentLength, progress);
-      
+  var currentLength = mix(0.0, segmentLength, progress);
+  
+       var sss = f32(segmentMeta[checkId].y) ;
+    sss *= 0.1;
     let scaledPos = vec3<f32>(
-        position.x * 0.05,  // thickness cố định
-        position.y * currentLength * 0.5,  // length từ 0 đến segmentLength/2
-        position.z * 0.05   // thickness cố định
+        position.x * .2,  // thickness cố định
+        position.y * currentLength   * 0.5,  // length từ 0 đến segmentLength/2
+        position.z  * .2 // thickness cố định
     );
     
     // ✅ QUAN TRỌNG: Center luôn cách A một khoảng currentLength/2
@@ -150,8 +152,12 @@ fn main(
         forward * scaledPos.y + 
         actualUp * scaledPos.z;
 
+
+
   worldPos.x += clusterCoord.x;
     worldPos.z += clusterCoord.z;
+   
+   
   output.Position = camera_uniforms.projectionMatrix *
                     camera_uniforms.viewMatrix *
                       camera_uniforms.modelMatrix *
