@@ -10,7 +10,7 @@ export async function loadAssets({ device,ASSETS_DESC }: { device: GPUDevice,ASS
       ...result_textures
     },
     models: {
-      ...result_models
+     // ...result_models
     }
   }
 }

@@ -1,4 +1,4 @@
-@group(3) @binding(1) var<storage, read> segmentMeta : array<vec4<u32>>;
+@group(2) @binding(1) var<storage, read> segmentMeta : array<vec4<u32>>;
 
 @fragment
 fn main(
@@ -14,5 +14,5 @@ fn main(
   var color : vec3 < f32>;
   color = vec3 < f32 > (isBranchStart, 0.0, 0.0);
 
-  return vec4 < f32 > (vec3f(depth) * vec3f(fragUV,1.), 1.0);
+  return vec4 < f32 > (vec3f(fragPosition.xyz) , 1.0);
 }

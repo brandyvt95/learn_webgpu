@@ -41,17 +41,20 @@ struct VertexOutput {
 
 @group(0) @binding(0) var<uniform> camera_uniforms : CameraUniforms;
 @group(1) @binding(0) var<uniform> uTime : f32;
-@group(2) @binding(0) var<storage, read> points : array<vec3 < f32>>;
-@group(3) @binding(0) var<storage, read> SEGMENT_COORD : array<f32>;
-@group(3) @binding(1) var<storage, read> segmentMeta : array<vec4 < u32>>;
-@group(3) @binding(2) var<storage, read> extraMeta : array<u32>;
+//@group(2) @binding(0) var<storage, read> points : array<vec3 < f32>>;
+@group(2) @binding(0) var<storage, read> SEGMENT_COORD : array<f32>;
+@group(2) @binding(1) var<storage, read> segmentMeta : array<vec4 < u32>>;
+@group(2) @binding(2) var<storage, read> extraMeta : array<u32>;
+@group(3) @binding(0) var<storage, read> outputPassCompute : array<vec4<f32>>;
 @vertex
 fn main(
+@builtin(vertex_index) vIdx : u32,
 @builtin(instance_index) instanceIdx : u32,
 @location(0) position : vec3 < f32>,
 @location(1) uv : vec2f
 ) -> VertexOutput {
   var output : VertexOutput;
+  let posCompute = outputPassCompute[instanceIdx];
   let extrasLength = extraMeta[0];
   let lengthBuffer_SEGMENT_COORD = extraMeta[extrasLength];
   let maxId = lengthBuffer_SEGMENT_COORD / 6u;
@@ -62,35 +65,18 @@ fn main(
   let baseIndex = checkId * 6u;
 
 
-
-  var clusterCoord = vec3f(0., 0., 0.);
-
-  for (var i = 1u; i < extrasLength; i = i + 1u)
-  {
-    if (baseIndex >= extraMeta[i] && baseIndex < extraMeta[i + 1u])
-    {
-      let seed = loopCount * 73856093u + i * 19349663u; //Sử dụng 2 số nguyên tố lớn
-      let randX = randomFromSeed(seed);
-      let randZ = randomFromSeed(seed + 1u);//Đổi seed một chút để không giống nhau
-
-      //clusterCoord.x += randX * 10.0;
-      //clusterCoord.z += randZ * 10.0;
-      break;
-    }
-  }
-
-
   let A = vec3 < f32 > (
-  SEGMENT_COORD[baseIndex + 0u],
-  SEGMENT_COORD[baseIndex + 1u],
-  SEGMENT_COORD[baseIndex + 2u]
+    SEGMENT_COORD[baseIndex + 0u],
+    SEGMENT_COORD[baseIndex + 1u],
+    SEGMENT_COORD[baseIndex + 2u]
   );
 
   let B = vec3 < f32 > (
-  SEGMENT_COORD[baseIndex + 3u],
-  SEGMENT_COORD[baseIndex + 4u],
-  SEGMENT_COORD[baseIndex + 5u]
+    SEGMENT_COORD[baseIndex + 3u],
+    SEGMENT_COORD[baseIndex + 4u],
+    SEGMENT_COORD[baseIndex + 5u]
   );
+ 
 
   let direction = B - A;
   let segmentLength = length(direction);
@@ -141,7 +127,7 @@ fn main(
   var sss = segmentMeta[checkId].y;
   var factor = 1.;
   if(sss > 1u){
-    factor = .2;
+    factor = .3;
   }
   let scaledPos = vec3 < f32 > (
   position.x * factor * .02,        //thickness cố định
@@ -160,18 +146,35 @@ fn main(
   actualUp * scaledPos.z;
 
 
+  var clusterCoord = vec3f(0., 0., 0.);
+
+  for (var i = 1u; i < extrasLength; i = i + 1u)
+  {
+    if (baseIndex >= extraMeta[i] && baseIndex < extraMeta[i + 1u])
+    {
+      let seed = loopCount * 73856093u + i * 19349663u; //Sử dụng 2 số nguyên tố lớn
+      let randX = randomFromSeed(seed);
+      let randZ = randomFromSeed(seed + 1u);//Đổi seed một chút để không giống nhau
+      
+      clusterCoord.x += randX * 5.0;
+      clusterCoord.z += randZ * 5.0;
+      break;
+    }
+  }
+
 
   worldPos.x += clusterCoord.x;
   worldPos.z += clusterCoord.z;
 
-
+let rlsPos = vec4<f32>( position * .1 + posCompute.xyz * 1., 1.0);
   output.Position = camera_uniforms.projectionMatrix *
   camera_uniforms.viewMatrix *
   camera_uniforms.modelMatrix *
-  vec4 < f32 > (worldPos * .1, 1.0);
+  //vec4 < f32 > (worldPos * .1, 1.0);
+  rlsPos;
 
   output.fragUV = uv;
-  output.fragPosition = 0.5 * (vec4(1.0));
+  output.fragPosition = rlsPos * 10.;
   output.instanceIdx = checkId;
   return output;
 }

@@ -212,7 +212,7 @@ export class GltfLoader {
         for (const [attribName, accessorIndex] of Object.entries(primitive.attributes)) {
           const primitiveAttrib = ATTRIB_MAPPING[attribName];
           if (!primitiveAttrib) {
-            console.log(`Skipping unknown attribute ${attribName}`);
+            //console.log(`Skipping unknown attribute ${attribName}`);
             continue;
           }
           const accessor = gltf.accessors[accessorIndex as number];
@@ -231,7 +231,7 @@ export class GltfLoader {
 
         if ('indices' in primitive) {
           const accessor = gltf.accessors[primitive.indices];
-           console.log( accessor)
+          // console.log( accessor)
           const bufferView = gltf.bufferViews[accessor.bufferView];
           primitiveDescriptor.indices = {
             values: bufferView.extras.gpu.buffer,
@@ -311,7 +311,7 @@ export class GltfLoader {
     const skins = [];
     if (gltf.skins) {
       for (const skin of (gltf.skins as any[])) {
-        console.log(gltf.skins)
+       // console.log(gltf.skins)
         // TODO: May not have an inverseBindMatrices, if so should fill with identity matrices.
         const invBindMatrixAccessor = gltf.accessors[skin.inverseBindMatrices];
         const inverseBindMatrices = getAccessorTypedArray(invBindMatrixAccessor) as Float32Array;
@@ -353,7 +353,7 @@ export class GltfLoader {
         }));
       }
     }
-    console.log("sceneNodes on gltf.ts",sceneNodes)
+   // console.log("sceneNodes on gltf.ts",sceneNodes)
     const animationTarget = new AnimationTarget(sceneNodes);
 
     // Second pass over the nodes to build the tree.

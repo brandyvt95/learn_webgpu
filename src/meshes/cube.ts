@@ -47,6 +47,43 @@ export const cubeVertexArray = new Float32Array([
    1,  1,  1, 1,  0, 1, 1, 1,  1, 1,  // 22
    1,  1, -1, 1,  0, 1, 1, 1,  0, 1,  // 23
 ]);
+export const cubeVertexOriginArray = new Float32Array([
+  // BOTTOM face (y = -1, normal pointing down)
+  -1, -1, -1, 1, 
+   1, -1, -1, 1, 
+   1, -1,  1, 1,  
+  -1, -1,  1, 1,  
+
+  // TOP face (y = 1, normal pointing up)  
+  -1,  1, -1, 1, 
+   1,  1, -1, 1, 
+   1,  1,  1, 1,
+  -1,  1,  1, 1, 
+
+  // FRONT face (z = 1, normal pointing toward viewer)
+  -1, -1,  1, 1, 
+   1, -1,  1, 1, 
+   1,  1,  1, 1, 
+  -1,  1,  1, 1,  
+
+  // BACK face (z = -1, normal pointing away from viewer)
+   1, -1, -1, 1, 
+  -1, -1, -1, 1, 
+  -1,  1, -1, 1,  
+   1,  1, -1, 1, 
+
+  // LEFT face (x = -1, normal pointing left)
+  -1, -1, -1, 1,  
+  -1, -1,  1, 1, 
+  -1,  1,  1, 1,  
+  -1,  1, -1, 1,  
+
+  // RIGHT face (x = 1, normal pointing right)
+   1, -1, -1, 1, 
+   1, -1,  1, 1,  
+   1,  1,  1, 1, 
+   1,  1, -1, 1, 
+]);
 
 // Index buffer - định nghĩa thứ tự vertices tạo thành triangles
 export const cubeIndices = new Uint16Array([

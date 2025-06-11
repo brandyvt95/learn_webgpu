@@ -215,13 +215,13 @@ async function main({
 
 
 
-  let result2 = CORE_ASSETS.models.leaf_model
+  //let result2 = CORE_ASSETS.models.leaf_model
   
   const instanced = new InitInstancedMesh({
       device: CORE_ENGINE.device,
       presentationFormat: CORE_ENGINE.format.presentationFormat,
      frameBindGroupLayout: frameBindGroupLayout,
-       gltf: result2.scene,
+       gltf: null,
   })
   const ground = new InitGround({
     device: CORE_ENGINE.device,
@@ -229,19 +229,19 @@ async function main({
     frameBindGroupLayout: frameBindGroupLayout
   });
 
-  const enviromentCube = new InitCubeMap({
-    device: CORE_ENGINE.device,
-    presentationFormat: CORE_ENGINE.format.presentationFormat,
-    cubemapTexture: CORE_ASSETS.textures["cubemap_texture"],
-    frameBindGroupLayout: frameBindGroupLayout
-  });
+  // const enviromentCube = new InitCubeMap({
+  //   device: CORE_ENGINE.device,
+  //   presentationFormat: CORE_ENGINE.format.presentationFormat,
+  //   cubemapTexture: CORE_ASSETS.textures["cubemap_texture"],
+  //   frameBindGroupLayout: frameBindGroupLayout
+  // });
 
-  const mutilDrawSample =  new Sample({
-        device: CORE_ENGINE.device,
-    presentationFormat: CORE_ENGINE.format.presentationFormat,
-    frameBindGroupLayout:frameBindGroupLayout
-  })
-  const LIST_PIPLINE = [ground/* , enviromentCube */,instanced,mutilDrawSample]
+  // const mutilDrawSample =  new Sample({
+  //       device: CORE_ENGINE.device,
+  //   presentationFormat: CORE_ENGINE.format.presentationFormat,
+  //   frameBindGroupLayout:frameBindGroupLayout
+  // })
+  const LIST_PIPLINE = [ground/* , enviromentCube */,instanced,/* mutilDrawSample */]
   const {
     depthTexture,
     depthTextureMSAA,
@@ -257,39 +257,39 @@ async function main({
 
 
   //LOAD MODE V2
-  let skinMesh2
-  let sceneRoot = new SceneObject();
-  let selectedAnimation
-  let scene
-  function loadModel() {
-    let result = CORE_ASSETS.models.dragon_model
-    scene = result.scene;
-    sceneRoot.addChild(scene);
-    if (result.animations.length) {
-      selectedAnimation = result.animations[0];
+  // let skinMesh2
+  // let sceneRoot = new SceneObject();
+  // let selectedAnimation
+  // let scene
+  // function loadModel() {
+  //   let result = CORE_ASSETS.models.dragon_model
+  //   scene = result.scene;
+  //   sceneRoot.addChild(scene);
+  //   if (result.animations.length) {
+  //     selectedAnimation = result.animations[0];
 
-      const options = [{ text: 'none', value: null }];
-      for (const animation of result.animations) {
-        if (animation.name.includes('IDLE')) {
-          selectedAnimation = animation;
-        }
-        options.push({ text: animation.name, value: animation });
-      }
-    } else {
-      selectedAnimation = null;
-    }
-    skinMesh2 = new InitModelSkin2({
-      device: CORE_ENGINE.device,
-      presentationFormat: CORE_ENGINE.format.presentationFormat,
-      cameraBGCluster: cameraBGCluster,
-      skinBindGroup: result.skinBindGroup,
-      gltf: result.core,
-      scene: result.scene,
-      COMMON_DEPTH_MSAA_DESC: COMMON_DEPTH_MSAA_DESC,
-      skinBindGroupLayout: result.skinBindGroupLayout
-    })
-  }
-  loadModel();
+  //     const options = [{ text: 'none', value: null }];
+  //     for (const animation of result.animations) {
+  //       if (animation.name.includes('IDLE')) {
+  //         selectedAnimation = animation;
+  //       }
+  //       options.push({ text: animation.name, value: animation });
+  //     }
+  //   } else {
+  //     selectedAnimation = null;
+  //   }
+  //   skinMesh2 = new InitModelSkin2({
+  //     device: CORE_ENGINE.device,
+  //     presentationFormat: CORE_ENGINE.format.presentationFormat,
+  //     cameraBGCluster: cameraBGCluster,
+  //     skinBindGroup: result.skinBindGroup,
+  //     gltf: result.core,
+  //     scene: result.scene,
+  //     COMMON_DEPTH_MSAA_DESC: COMMON_DEPTH_MSAA_DESC,
+  //     skinBindGroupLayout: result.skinBindGroupLayout
+  //   })
+  // }
+  // loadModel();
 
 
   function render() {
@@ -301,7 +301,16 @@ async function main({
 
     const swapChainTexture = CORE_ENGINE.context.getCurrentTexture();
     sceneRenderPassDesc.colorAttachments[0].view = swapChainTexture.createView();
+
+
+
     const commandEncoder = CORE_ENGINE.device.createCommandEncoder();
+
+    const computePass = commandEncoder.beginComputePass();
+     instanced.runComputePass(computePass)
+    computePass.end();
+
+
     {
       const timeValue = new Float32Array([then]);
       const scenePass = commandEncoder.beginRenderPass(sceneRenderPassDesc);
@@ -361,9 +370,9 @@ async function main({
   function frame(now) {
     const frameStart = performance.now();
     frameCount++;
-    if (selectedAnimation) {
-      selectedAnimation.applyAtTime(now, scene.animationTarget);
-    }
+    // if (selectedAnimation) {
+    //   selectedAnimation.applyAtTime(now, scene.animationTarget);
+    // }
     now *= 0.001;
     const deltaTime = now - then;
     then = now;
