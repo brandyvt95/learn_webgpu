@@ -90,7 +90,7 @@ export class InitInstancedMesh {
   constructor({ device, presentationFormat, frameBindGroupLayout, gltf }: InitInstancedMeshOptions) {
     this.device = device;
     this.gltf = gltf
-    this.numInstances = 4000
+    this.numInstances = 40
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -328,7 +328,7 @@ export class InitInstancedMesh {
         "H": "H"
       }
       ,
-      iterations: 4,
+      iterations: 2,
       angle: 22.5,
       stepSize: 1,
       branchReduction: 0.7,

@@ -5,8 +5,14 @@ export async function initCoreEngine({ canvas }: { canvas: HTMLCanvasElement }) 
   canvas.height = canvas.clientHeight * devicePixelRatio;
   const adapter = await navigator.gpu?.requestAdapter({
     featureLevel: 'compatibility',
+    
   });
-  const device = await adapter?.requestDevice();
+  const device = await adapter?.requestDevice({
+    requiredLimits: {
+    maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize, // hoặc 2_000_000_000 nếu bạn chắc
+  }
+  });
+
   quitIfWebGPUNotAvailable(adapter, device);
   const context = canvas.getContext('webgpu') as GPUCanvasContext;
   //FORMAT

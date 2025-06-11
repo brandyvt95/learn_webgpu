@@ -10,9 +10,7 @@ import {
   cubeIndexCount,
   cubeVertexArrayOptimized,
   cubeIndicesOptimized,
-  cubeVertexCountOptimized,
-  cubeVertexOriginArray,
-
+  cubeVertexCountOptimized
 } from '../meshes/cube';
 // import {
 //   cubeVertexArray,
@@ -31,7 +29,7 @@ import { BoxGeometryDesc } from '../shapes';
 import { applyFK, applyForceToSegment, applyStaticFK, buildChains } from './Lsystem/fkCpu';
 import { Segment } from './Lsystem/type';
 import { mergerBuffer } from './utils';
-import { initComputePipeline, type IComputeInitOptions } from '../COMPUTE/initComputePipeline';
+import { initComputePipeline,type IComputeInitOptions } from '../COMPUTE/initComputePipeline';
 
 interface InitInstancedMeshOptions {
   device: GPUDevice;
@@ -70,27 +68,17 @@ export class InitInstancedMesh {
   gltf: any
   segmentsOut: any
 
-  resultBufferSeg: any
-  resultMeta: any
-  resultBufferSegMeta: any
+  resultBufferSeg:any
+  resultMeta:any
+  resultBufferSegMeta:any
 
 
-  computePipeline: any
-  compute_branchBindGroupLayout: GPUBindGroupLayout
-  compute_branchBindGroup: GPUBindGroup
-
-  infoInstacne_BindGroup: GPUBindGroup
-  infoInstacne_Layout: GPUBindGroupLayout
-  outputPosIntances: GPUBuffer
-  rlsPassComputeBindGroup: GPUBindGroup
-  rlsPassComputeBindGroupLayout: GPUBindGroupLayout
-  rlsFkBindGroupLayout: GPUBindGroupLayout
-  computer_rlsFkBindGroup: GPUBindGroup
+  computePipeline:any
 
   constructor({ device, presentationFormat, frameBindGroupLayout, gltf }: InitInstancedMeshOptions) {
     this.device = device;
     this.gltf = gltf
-    this.numInstances = 4000
+    this.numInstances = 20000
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -99,12 +87,12 @@ export class InitInstancedMesh {
     this.createInstanceShape();
     this.createBufferLsystem()
     this.createBuffersMatrixRand()
-
+    this.initCompute()
   }
 
   createPipeline() {
     this.modelMatrixBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'group layout model matrix sample',
+      label:'group layout model matrix sample',
       entries: [
         {
           binding: 0,
@@ -116,7 +104,7 @@ export class InitInstancedMesh {
       ],
     });
     this.pointsUpdateBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'group layout point update',
+      label:'group layout point update',
       entries: [
         {
           binding: 0, //  array<f32>
@@ -135,7 +123,7 @@ export class InitInstancedMesh {
       ],
     });
     this.timeBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'group layout time param',
+      label:'group layout time param',
       entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX,
@@ -143,7 +131,7 @@ export class InitInstancedMesh {
       }],
     });
     this.branchBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'group layout branch info',
+      label:'group layout branch info',
       entries: [
         {
           binding: 0, // segment array<f32>
@@ -161,22 +149,13 @@ export class InitInstancedMesh {
         },
       ],
     });
-    this.rlsPassComputeBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'group rls pass cpmpute',
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.VERTEX,
-          buffer: { type: "read-only-storage" },
-        }
-      ],
-    });
+
     const pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
         this.frameBindGroupLayout,
         this.timeBindGroupLayout,
         this.branchBindGroupLayout,
-        this.rlsPassComputeBindGroupLayout/* 
+        this.pointsUpdateBindGroupLayout/* 
       this.modelMatrixBindGroupLayout */]
     });
     this.pipeline = this.device.createRenderPipeline({
@@ -231,7 +210,7 @@ export class InitInstancedMesh {
   createInstanceShape() {
     this.verticesBuffer = this.device.createBuffer({
       size: cubeVertexArrayOptimized.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
+      usage: GPUBufferUsage.VERTEX,
       mappedAtCreation: true,
     });
     new Float32Array(this.verticesBuffer.getMappedRange()).set(cubeVertexArrayOptimized);
@@ -323,21 +302,21 @@ export class InitInstancedMesh {
     const config1: any = {
       axiom: "F",
       rules: {
-        "F": "F[+F][-F]",
+        "F": "FF+[+&F]-[-^F+F]",
 
         "H": "H"
       }
       ,
-      iterations: 4,
+      iterations: 3,
       angle: 22.5,
-      stepSize: 1,
+      stepSize: .2,
       branchReduction: 0.7,
       randomFactor: 1
     };
 
     const segments1 = generateLSystemSegments(config1);
 
-    const config2: any = {
+   const config2: any = {
       axiom: "F",
       rules: {
         "F": "F+[-&F]-[^F]",
@@ -353,7 +332,7 @@ export class InitInstancedMesh {
 
     const segments2 = generateLSystemSegments(config2);
 
-    const config3: any = {
+     const config3: any = {
       axiom: "F",
       rules: {
         "F": "FF+[&F&F&F]-[^F]",
@@ -369,18 +348,17 @@ export class InitInstancedMesh {
 
     const segments3 = generateLSystemSegments(config3);
 
-    
-    this.segmentsOut = segments1
-   
+
+    this.segmentsOut = segments2
     const { points: point1, meta: segmentMeta1, origin: origin1 } = packSegments(segments1);
     const { points: point2, meta: segmentMeta2, origin: origin2 } = packSegments(segments2);
     const { points: point3, meta: segmentMeta3, origin: origin3 } = packSegments(segments3);
-    this.resultBufferSeg = mergerBuffer([point1], 'float32');
-    this.resultMeta = mergerBuffer([segmentMeta1], 'uint32');
- console.log(origin1)
-    const list = [point1]
+    this.resultBufferSeg = mergerBuffer([point1,point2,point3], 'float32');
+    this.resultMeta =  mergerBuffer([segmentMeta1,segmentMeta2,segmentMeta3], 'uint32');
+
+    const list =  [point1,point2,point3]
     // array dynamic , so add key on 0
-    // hoặc nhiều hơn
+   // hoặc nhiều hơn
     const categoryBounds = [0];
 
     for (let i = 0; i < list.length; i++) {
@@ -400,21 +378,8 @@ export class InitInstancedMesh {
 
   }
   createBufferLsystem() {
-    this.initLsystem()
+    this.initLsystem() 
 
-    this.outputPosIntances = this.device.createBuffer({
-      size: this.numInstances * 24 * 4 * 4, // 36 vertices, vec4<f32> = 16 bytes
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC,
-    });
-    this.rlsPassComputeBindGroup = this.device.createBindGroup({
-      layout: this.rlsPassComputeBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.outputPosIntances },
-        }
-      ],
-    });
     this.pointsBuffer = this.device.createBuffer
       ({
         size: this.resultBufferSeg.byteLength,
@@ -472,152 +437,17 @@ export class InitInstancedMesh {
         }
       ],
     });
-
-    this.initCompute({
-      buffer: [this.pointsBuffer, segmentMetaBuffer, extrasMetaBuffer]
-    })
   }
 
-  async initCompute({ buffer }: any) {
-    this.rlsFkBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'compute group layout fk rls',
-      entries: [
-        {
-          binding: 0, // segment array<f32>
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" },
-        }
-      ],
+  async initCompute() {
+    this.computePipeline = await  initComputePipeline({
+      device:this.device,
+      bindGroupList:[this.branchBindGroup]
     });
-    this.computer_rlsFkBindGroup = this.device.createBindGroup({
-      layout: this.rlsFkBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.pointsBufferUpdate },
-        }
-      ],
-    });
-
-    this.compute_branchBindGroupLayout = this.device.createBindGroupLayout({
-      label: 'compute group layout branch info',
-      entries: [
-        {
-          binding: 0, // segment array<f32>
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" },
-        },
-        {
-          binding: 1, // segmentMeta array<vec4 < u32>>
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" },
-        },
-        {
-          binding: 2, // extraMeta array<u32>
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" },
-        }
-      ],
-    });
-    this.compute_branchBindGroup = this.device.createBindGroup({
-      layout: this.compute_branchBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: buffer[0] },
-        },
-        {
-          binding: 1,
-          resource: { buffer: buffer[1] },
-        },
-        {
-          binding: 2,
-          resource: { buffer: buffer[2] },
-        }
-      ],
-    });
-
-
-    this.infoInstacne_Layout = this.device.createBindGroupLayout({
-      label: 'infoinstacne info',
-      entries: [
-        {
-          binding: 0, // array<f32>
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "read-only-storage" },
-        },
-        {
-          binding: 1, //  array<f32>
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: { type: "storage" },
-        }
-      ],
-    });
-
-    // const vertexCount = cubeVertexArray.length / 10; // Mỗi vertex có 10 floats
-    // const cubeVertexOriginArray = new Float32Array(vertexCount * 4); // Chỉ lấy 4 floats đầu
-
-    // for (let i = 0; i < vertexCount; i++) {
-    //   cubeVertexOriginArray[i * 4 + 0] = cubeVertexArray[i * 10 + 0]; // x
-    //   cubeVertexOriginArray[i * 4 + 1] = cubeVertexArray[i * 10 + 1]; // y
-    //   cubeVertexOriginArray[i * 4 + 2] = cubeVertexArray[i * 10 + 2]; // z
-    //   cubeVertexOriginArray[i * 4 + 3] = cubeVertexArray[i * 10 + 3]; // w
-    // }
-    const verticesBufferCompute = this.device.createBuffer({
-      size: cubeVertexOriginArray.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
-      mappedAtCreation: true,
-    });
-    new Float32Array(verticesBufferCompute.getMappedRange()).set(cubeVertexOriginArray);
-    verticesBufferCompute.unmap();
-
-
-    this.infoInstacne_BindGroup = this.device.createBindGroup({
-      layout: this.infoInstacne_Layout,
-      entries: [
-        {
-          binding: 0,
-          resource: { buffer: verticesBufferCompute },
-        },
-        {
-          binding: 1,
-          resource: { buffer: this.outputPosIntances },
-        }
-      ],
-    });
-
-    this.computePipeline = await initComputePipeline({
-      device: this.device,
-      layout: [this.infoInstacne_Layout, this.compute_branchBindGroupLayout,this.rlsFkBindGroupLayout]
-    });
-
+    console.log(   this.computePipeline )
   }
-  getComputePipiline() {
-    return this.computePipeline
-  }
-  runComputePass(computePass) {
-    if (this.computePipeline) {
-      computePass.setPipeline(this.computePipeline);
-      computePass.setBindGroup(0, this.infoInstacne_BindGroup);
-      computePass.setBindGroup(1, this.compute_branchBindGroup);
-      computePass.setBindGroup(2, this.computer_rlsFkBindGroup);
-      //cubeVertexCount  : 21
-      //this.numInstances 100k
-      const totalVertices = this.numInstances * cubeVertexCount;
-      //   console.log(totalVertices)
-      //computePass.dispatchWorkgroups(Math.ceil( totalVertices/ 64));
-      const maxXCompute = 65535;
-      const workgroupSize = 64
-      const workgroupCountX = Math.min(maxXCompute, Math.ceil(totalVertices / workgroupSize));
-      const workgroupCountY = Math.ceil(totalVertices / (workgroupSize * maxXCompute));
 
-      computePass.dispatchWorkgroups(workgroupCountX, workgroupCountY);
 
-    } else {
-      console.warn("computePipeline tracking")
-    }
-
-  }
   draw({ renderPass, frameBindGroup, timeValue }: { renderPass: GPURenderPassEncoder, frameBindGroup: GPUBindGroup, timeValue: any }) {
     this.device.queue.writeBuffer(
       this.timeBuffer,
@@ -628,21 +458,19 @@ export class InitInstancedMesh {
     );
     //console.time()
 
-    const animatedSegments = applyFK(this.segmentsOut, timeValue[0]);
+    // const animatedSegments = applyFK(this.segmentsOut, timeValue[0]);
 
 
-    const { points: updatedPoints, meta, origin } = packSegments(animatedSegments as any);
-    this.device.queue.writeBuffer(this.pointsBufferUpdate, 0, updatedPoints);
-    //console.timeEnd()
-
-
+    // const { points: updatedPoints, meta, origin } = packSegments(animatedSegments as any);
+    // this.device.queue.writeBuffer(this.pointsBufferUpdate, 0, updatedPoints);
+    // console.timeEnd()
 
 
     renderPass.setPipeline(this.pipeline);
     renderPass.setBindGroup(0, frameBindGroup);
     renderPass.setBindGroup(1, this.timeBindGroup);
     renderPass.setBindGroup(2, this.branchBindGroup);
-    renderPass.setBindGroup(3, this.rlsPassComputeBindGroup);
+    renderPass.setBindGroup(3, this.pointsUpdateBindGroup);
     //  renderPass.setBindGroup(4, this.modelMatrixBindGroup);
     renderPass.setVertexBuffer(0, this.verticesBuffer);
     renderPass.setIndexBuffer(this.indexBuffer, "uint16");
