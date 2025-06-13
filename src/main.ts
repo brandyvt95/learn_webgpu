@@ -17,7 +17,7 @@ import { CameraInitializer } from './camera/initCamera.js';
 import { COMMON_DEPTH_MSAA_DESC } from './contrast.js';
 import { createEnvironmentSampler, createLightBuffer } from './utils.js';
 import { ManagerBuffer } from './manager_buffer.js';
-import { InitInstancedMesh } from './InstancedMesh/index.js';
+import { InitInstancedMesh } from './InstancedMesh_v2/index.js';
 import { Sample } from './SAMPLE/index.js';
 
 
@@ -161,7 +161,7 @@ async function main({
 
   const lightBuffer = createLightBuffer({ device: CORE_ENGINE.device })
   const environmentSampler = createEnvironmentSampler({ device: CORE_ENGINE.device })
-  
+
   const frameBindGroupLayout = CORE_ENGINE.device.createBindGroupLayout({
     label: 'frame bind group layout',
     entries: [{
@@ -216,12 +216,12 @@ async function main({
 
 
   //let result2 = CORE_ASSETS.models.leaf_model
-  
+
   const instanced = new InitInstancedMesh({
-      device: CORE_ENGINE.device,
-      presentationFormat: CORE_ENGINE.format.presentationFormat,
-     frameBindGroupLayout: frameBindGroupLayout,
-       gltf: null,
+    device: CORE_ENGINE.device,
+    presentationFormat: CORE_ENGINE.format.presentationFormat,
+    frameBindGroupLayout: frameBindGroupLayout,
+    gltf: null,
   })
   const ground = new InitGround({
     device: CORE_ENGINE.device,
@@ -241,7 +241,7 @@ async function main({
   //   presentationFormat: CORE_ENGINE.format.presentationFormat,
   //   frameBindGroupLayout:frameBindGroupLayout
   // })
-  const LIST_PIPLINE = [ground/* , enviromentCube */,instanced,/* mutilDrawSample */]
+  const LIST_PIPLINE = [ground/* , enviromentCube */, instanced,/* mutilDrawSample */]
   const {
     depthTexture,
     depthTextureMSAA,
@@ -306,24 +306,26 @@ async function main({
 
     const commandEncoder = CORE_ENGINE.device.createCommandEncoder();
 
-    const computePass = commandEncoder.beginComputePass();
-     instanced.runComputePass(computePass)
-    computePass.end();
-
+    const computePass1 = commandEncoder.beginComputePass();
+    instanced.runComputePass(computePass1)
+    computePass1.end();
+    const computePass2 = commandEncoder.beginComputePass(); 
+    instanced.runComputePassFk(computePass2)
+    computePass2.end();
 
     {
       const timeValue = new Float32Array([then]);
       const scenePass = commandEncoder.beginRenderPass(sceneRenderPassDesc);
 
-  
+
       for (let i = 0; i < LIST_PIPLINE.length; i++) {
         LIST_PIPLINE[i].draw({
           renderPass: scenePass,
           frameBindGroup: frameBindGroup,
-          timeValue:timeValue
+          timeValue: timeValue
         })
       }
-   
+
       // if (skinMesh2) {
       //   const renderables = {
       //     meshes: [],

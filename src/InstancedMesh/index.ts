@@ -31,7 +31,7 @@ import { BoxGeometryDesc } from '../shapes';
 import { applyFK, applyForceToSegment, applyStaticFK, buildChains } from './Lsystem/fkCpu';
 import { Segment } from './Lsystem/type';
 import { mergerBuffer } from './utils';
-import { initComputePipeline, type IComputeInitOptions } from '../COMPUTE/initComputePipeline';
+import { initComputePipeline, type IComputeInitOptions } from '../InstancedMesh_v2/compute/initComputePipeline';
 
 interface InitInstancedMeshOptions {
   device: GPUDevice;

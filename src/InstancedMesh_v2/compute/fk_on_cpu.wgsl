@@ -25,35 +25,30 @@ fn randomFromSeed(seed : u32) -> f32 {
 }
 
 
-struct CameraUniforms {
-  modelMatrix : mat4x4 < f32>,
-  viewMatrix : mat4x4 < f32>,
-  projectionMatrix : mat4x4 < f32>,
-  cameraPosition : vec3 < f32>,
-  padding : f32,//<- để giữ alignment 16 bytes
-}
-struct VertexOutput {
-  @builtin(position) Position : vec4f,
-  @location(0) fragUV : vec2f,
-  @location(1) fragPosition : vec4f,
-  @location(2) @interpolate(flat) instanceIdx : u32,
-}
 
-@group(0) @binding(0) var<uniform> camera_uniforms : CameraUniforms;
-@group(1) @binding(0) var<uniform> uTime : f32;
-//@group(2) @binding(0) var<storage, read> points : array<vec3 < f32>>;
-@group(2) @binding(0) var<storage, read> SEGMENT_COORD : array<f32>;
-@group(2) @binding(1) var<storage, read> segmentMeta : array<vec4 < u32>>;
-@group(2) @binding(2) var<storage, read> extraMeta : array<u32>;
-@group(3) @binding(0) var<storage, read> outputPassCompute : array<vec4<f32>>;
-@vertex
-fn main(
-@builtin(vertex_index) vertexIdxInInstance : u32,
-@builtin(instance_index) instanceIdx : u32,
-@location(0) position : vec3 < f32>,
-@location(1) uv : vec2f
-) -> VertexOutput {
-  var output : VertexOutput;
+@group(0) @binding(0) var<storage, read> vertexPositions  : array<vec3<f32>>;
+@group(0) @binding(1) var<storage, read_write> outputPositions  : array<vec4<f32>>;
+@group(1) @binding(0) var<storage, read> SEGMENT_COORD : array<f32>;
+@group(1) @binding(1) var<storage, read> segmentMeta : array<vec4 < u32>>;
+@group(1) @binding(2) var<storage, read> extraMeta : array<u32>;
+@group(2) @binding(0) var<storage, read> SEGMENT_COORD_FK : array<f32>;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) global_id : vec3<u32>)
+{
+  let vertexGlobalIndex = global_id.y * 65535u * 64u + global_id.x;
+
+    let vertexPerInstance = 24u;
+    let instanceIdx = vertexGlobalIndex / vertexPerInstance;
+    let vertexIdxInInstance = vertexGlobalIndex % vertexPerInstance;
+
+    let vertex = vertexPositions[vertexIdxInInstance];
+
+    // let gridWidth = 10u;
+    // let x = f32(instanceIdx % gridWidth);
+    // let y = f32(instanceIdx / gridWidth);
+    // let offsetSample = vec3f(x * 6.6, y * 6.6, 0.0);
+
+
 
   let extrasLength = extraMeta[0];
   let lengthBuffer_SEGMENT_COORD = extraMeta[extrasLength];
@@ -66,15 +61,15 @@ fn main(
 
 
   let A = vec3 < f32 > (
-    SEGMENT_COORD[baseIndex + 0u],
-    SEGMENT_COORD[baseIndex + 1u],
-    SEGMENT_COORD[baseIndex + 2u]
+    SEGMENT_COORD_FK[baseIndex + 0u],
+    SEGMENT_COORD_FK[baseIndex + 1u],
+    SEGMENT_COORD_FK[baseIndex + 2u]
   );
 
   let B = vec3 < f32 > (
-    SEGMENT_COORD[baseIndex + 3u],
-    SEGMENT_COORD[baseIndex + 4u],
-    SEGMENT_COORD[baseIndex + 5u]
+    SEGMENT_COORD_FK[baseIndex + 3u],
+    SEGMENT_COORD_FK[baseIndex + 4u],
+    SEGMENT_COORD_FK[baseIndex + 5u]
   );
  
 
@@ -106,33 +101,35 @@ fn main(
 
 
 
-  //Mỗi depth sẽ được __string__0__endstring__ sau 2 giây
-  let delayPerDepth = .01;
+  // //Mỗi depth sẽ được __string__0__endstring__ sau 2 giây
+  // let delayPerDepth = .01;
 
-  //Thời gian kéo dài của mỗi instance (ví dụ 0.5s hoặc tùy bạn)
-  let durationPerInstance = 0.5;
+  // //Thời gian kéo dài của mỗi instance (ví dụ 0.5s hoặc tùy bạn)
+  // let durationPerInstance = 0.5;
 
-  //Thời gian bắt đầu của instance này = depth * delay
-  let startTime = f32(instanceIdx) * delayPerDepth;
+  // //Thời gian bắt đầu của instance này = depth * delay
+  // let startTime = f32(instanceIdx) * delayPerDepth;
 
-  //Thời gian kết thúc
-  let endTime = startTime + durationPerInstance;
+  // //Thời gian kết thúc
+  // let endTime = startTime + durationPerInstance;
 
-  //Tiến trình kéo dài (progress: 0..1)
-  let progress = clamp((uTime - startTime) / durationPerInstance, 0.0, 1.0);
+  // //Tiến trình kéo dài (progress: 0..1)
+  // let progress = clamp((uTime - startTime) / durationPerInstance, 0.0, 1.0);
 
-  //Độ dài hiện tại của instance
-  var currentLength = mix(0.0, segmentLength, progress);
-  currentLength = segmentLength;
+  // //Độ dài hiện tại của instance
+  // var currentLength = mix(0.0, segmentLength, progress);
+
+  var currentLength = segmentLength;
   var sss = segmentMeta[checkId].y;
   var factor = 1.;
   if(sss > 1u){
     factor = .3;
   }
+  factor = 1.;
   let scaledPos = vec3 < f32 > (
-  position.x * factor * .02,        //thickness cố định
-  position.y * currentLength * 0.5,         //length từ 0 đến segmentLength/2
-  position.z * factor * .02         //thickness cố định
+  vertex.x * factor * .02,        //thickness cố định
+  vertex.y * currentLength * 0.5,         //length từ 0 đến segmentLength/2
+  vertex.z * factor * .02         //thickness cố định
   );
 
     //✅ QUAN TRỌNG: Center luôn cách A một khoảng currentLength/2
@@ -156,8 +153,8 @@ fn main(
       let randX = randomFromSeed(seed);
       let randZ = randomFromSeed(seed + 1u);//Đổi seed một chút để không giống nhau
       
-      clusterCoord.x += randX * 5.0;
-      clusterCoord.z += randZ * 5.0;
+     clusterCoord.x += sin(f32(loopCount) * 3.) * 4. ;
+     clusterCoord.z += cos(f32(loopCount)) * 4.;
       break;
     }
   }
@@ -165,19 +162,6 @@ fn main(
 
   worldPos.x += clusterCoord.x;
   worldPos.z += clusterCoord.z;
-
-  let baseIndex2 = instanceIdx * 24u + vertexIdxInInstance;
-let posCompute = outputPassCompute[baseIndex2];
-  
-let rlsPos = vec4<f32>( posCompute.xyz * 1., 1.0);
-  output.Position = camera_uniforms.projectionMatrix *
-  camera_uniforms.viewMatrix *
-  camera_uniforms.modelMatrix *
-  //vec4 < f32 > (worldPos * .1, 1.0);
-  rlsPos;
-
-  output.fragUV = uv;
-  output.fragPosition = rlsPos * 10.;
-  output.instanceIdx = checkId;
-  return output;
+ 
+    outputPositions[vertexGlobalIndex] = vec4f( worldPos, 1.0);
 }

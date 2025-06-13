@@ -67,7 +67,8 @@ fn vs(
         vec2(-0.5,  0.5),
     );
 
-    let size = uniforms.sphere_size * clamp(particles[instance_index].density / restDensity * densitySizeScale, 0.0, 1.0);
+    var size = uniforms.sphere_size * clamp(particles[instance_index].density / restDensity * densitySizeScale, 0.0, 1.0);
+   
     let projected_velocity = (uniforms.view_matrix * vec4f(particles[instance_index].v, 0.0)).xy;
     let stretched_position = computeStretchedVertex(corner_positions[vertex_index] * size, projected_velocity, stretchStrength);
     let corner = vec3(stretched_position, 0.0) * scaleQuad(projected_velocity, size, stretchStrength);
@@ -92,5 +93,5 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var thickness: f32 = sqrt(1.0 - r2);
     let particle_alpha = 0.05;
 
-    return vec4f(vec3f(particle_alpha * thickness), 1.0);
+    return vec4f(vec3f(thickness), 1.0);
 }

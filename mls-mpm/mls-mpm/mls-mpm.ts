@@ -48,6 +48,8 @@ export class MLSMPMSimulator {
 
     frameCount: number
 
+    timeCount:number
+
     spawned: boolean
 
     mouseInfoValues: ArrayBuffer
@@ -60,6 +62,7 @@ export class MLSMPMSimulator {
         this.device = device
         this.renderDiameter = renderDiameter
         this.frameCount = 0
+        this.timeCount = 0
         this.spawned = false
         this.numParticles = 0
         const clearGridModule = device.createShaderModule({ code: clearGrid });
@@ -70,7 +73,7 @@ export class MLSMPMSimulator {
         const g2pModule = device.createShaderModule({ code: g2p });
         const copyPositionModule = device.createShaderModule({ code: copyPosition });
 
-        this.restDensity = 4.
+        this.restDensity = .9
 
         const constants = {
             stiffness: 3., 
@@ -253,7 +256,7 @@ export class MLSMPMSimulator {
                 { binding: 2, resource: { buffer: this.realBoxSizeBuffer }},
                 { binding: 3, resource: { buffer: this.initBoxSizeBuffer }},
                 { binding: 4, resource: { buffer: this.numParticlesBuffer }}, 
-                { binding: 5, resource: { buffer: this.sphereRadiusBuffer }}, 
+              { binding: 5, resource: { buffer: this.sphereRadiusBuffer }}, 
             ],
         })
         this.copyPositionBindGroup = device.createBindGroup({
@@ -367,7 +370,11 @@ export class MLSMPMSimulator {
         computePass.end()
 
         // console.log("current particles: ", this.numParticles)
+       
         this.frameCount++;
+        this.timeCount += 0.05
+     
+        this.device.queue.writeBuffer(this.sphereRadiusBuffer, 0,new Float32Array([this.timeCount]) )
     }
 
     changeBoxSize(realBoxSize: number[]) {

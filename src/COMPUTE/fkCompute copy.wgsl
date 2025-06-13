@@ -125,6 +125,7 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>)
   if(sss > 1u){
     factor = .3;
   }
+  factor = 1.;
   let scaledPos = vec3 < f32 > (
   vertex.x * factor * .02,        //thickness cố định
   vertex.y * currentLength * 0.5,         //length từ 0 đến segmentLength/2
@@ -152,8 +153,8 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>)
       let randX = randomFromSeed(seed);
       let randZ = randomFromSeed(seed + 1u);//Đổi seed một chút để không giống nhau
       
-      clusterCoord.x += randX * 5.0;
-      clusterCoord.z += randZ * 5.0;
+     // clusterCoord.x += randX * 5.0;
+     // clusterCoord.z += randZ * 5.0;
       break;
     }
   }
@@ -161,6 +162,6 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>)
 
   worldPos.x += clusterCoord.x;
   worldPos.z += clusterCoord.z;
-  
+ 
     outputPositions[vertexGlobalIndex] = vec4f( worldPos, 1.0);
 }

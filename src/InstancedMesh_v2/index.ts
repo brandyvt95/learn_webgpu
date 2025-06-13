@@ -14,6 +14,10 @@ import {
   cubeVertexOriginArray,
 
 } from '../meshes/cube';
+
+import fkComputeCpu from './compute/fk_on_cpu.wgsl';
+import fkComputeGpu from './compute/fk_gpu_depthBase.wgsl';
+
 // import {
 //   cubeVertexArray,
 //   cubeVertexSize,
@@ -31,13 +35,13 @@ import { BoxGeometryDesc } from '../shapes';
 import { applyFK, applyForceToSegment, applyStaticFK, buildChains } from './Lsystem/fkCpu';
 import { Segment } from './Lsystem/type';
 import { mergerBuffer } from './utils';
-import { initComputePipeline, type IComputeInitOptions } from '../COMPUTE/initComputePipeline';
+import { initComputePipeline, type IComputeInitOptions } from './compute/initComputePipeline';
 
 interface InitInstancedMeshOptions {
   device: GPUDevice;
   presentationFormat: GPUTextureFormat;
   frameBindGroupLayout: GPUBindGroupLayout;
-  gltf: any
+  gltf?: any
 }
 
 export class InitInstancedMesh {
@@ -67,7 +71,6 @@ export class InitInstancedMesh {
   branchBindGroupLayout: GPUBindGroupLayout
   branchBindGroup: GPUBindGroup
 
-  gltf: any
   segmentsOut: any
 
   resultBufferSeg: any
@@ -87,10 +90,12 @@ export class InitInstancedMesh {
   rlsFkBindGroupLayout: GPUBindGroupLayout
   computer_rlsFkBindGroup: GPUBindGroup
 
-  constructor({ device, presentationFormat, frameBindGroupLayout, gltf }: InitInstancedMeshOptions) {
+  computeFkPipeline:any
+  computeFkBGL:GPUBindGroupLayout
+  computeFkBG:GPUBindGroup
+  constructor({ device, presentationFormat, frameBindGroupLayout }: InitInstancedMeshOptions) {
     this.device = device;
-    this.gltf = gltf
-    this.numInstances = 40
+    this.numInstances = 5000
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -98,7 +103,6 @@ export class InitInstancedMesh {
     this.createBuffersExtra()
     this.createInstanceShape();
     this.createBufferLsystem()
-    this.createBuffersMatrixRand()
 
   }
 
@@ -252,55 +256,6 @@ export class InitInstancedMesh {
   }
 
 
-
-  createBuffersMatrixRand() {
-
-    const matrixSize = 64; // bytes
-    const bufferSize = matrixSize * this.numInstances;
-
-    this.modelMatrixBuffer = this.device.createBuffer({
-      size: bufferSize,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    this.modelMatrixBindGroup = this.device.createBindGroup({
-      layout: this.modelMatrixBindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: this.modelMatrixBuffer,
-          },
-        },
-      ],
-    });
-    // Tạo array để chứa dữ liệu
-    const modelMatrices = new Float32Array(16 * this.numInstances);
-
-    for (let i = 0; i < this.numInstances; i++) {
-      const offset = i * 16;
-      const tx = (Math.random() - 0.5) * 205; // translate x
-      const ty = (Math.random() - 0.5) * 205; // translate y
-      const tz = (Math.random() - 0.5) * 205; // translate z
-
-      // Ghi ma trận model đơn giản: identity + translate
-      const scale = 0.05;
-      modelMatrices.set([
-        scale, 0, 0, 0,
-        0, scale, 0, 0,
-        0, 0, scale, 0,
-        tx, ty, tz, 1,
-      ], offset);
-    }
-
-    // Ghi vào GPU buffer
-    this.device.queue.writeBuffer(
-      this.modelMatrixBuffer,
-      0, // offset
-      modelMatrices.buffer,
-      modelMatrices.byteOffset,
-      modelMatrices.byteLength
-    );
-  }
   createBuffersExtra() {
 
     const timeBufferSize = 4;
@@ -323,12 +278,11 @@ export class InitInstancedMesh {
     const config1: any = {
       axiom: "F",
       rules: {
-        "F": "F[+F][-F]",
-
-        "H": "H"
+     "F": "F[+F][-F][&F][^F][/F][\\F]",
+      "H": "H"
       }
       ,
-      iterations: 2,
+      iterations: 3,
       angle: 22.5,
       stepSize: 1,
       branchReduction: 0.7,
@@ -340,11 +294,11 @@ export class InitInstancedMesh {
     const config2: any = {
       axiom: "F",
       rules: {
-        "F": "F+[-&F]-[^F]",
+        "F": "F[+FH]F[-FH]",
         "H": "H"
       }
       ,
-      iterations: 3,
+      iterations: 1,
       angle: 22.5,
       stepSize: .2,
       branchReduction: 0.7,
@@ -356,7 +310,7 @@ export class InitInstancedMesh {
     const config3: any = {
       axiom: "F",
       rules: {
-        "F": "FF+[&F&F&F]-[^F]",
+        "F": "FF+[&F]-[^F]",
         "H": "H"
       }
       ,
@@ -364,7 +318,7 @@ export class InitInstancedMesh {
       angle: 22.5,
       stepSize: .2,
       branchReduction: 0.7,
-      randomFactor: 1
+      randomFactor: .5
     };
 
     const segments3 = generateLSystemSegments(config3);
@@ -377,7 +331,7 @@ export class InitInstancedMesh {
     const { points: point3, meta: segmentMeta3, origin: origin3 } = packSegments(segments3);
     this.resultBufferSeg = mergerBuffer([point1], 'float32');
     this.resultMeta = mergerBuffer([segmentMeta1], 'uint32');
- console.log(origin1)
+
     const list = [point1]
     // array dynamic , so add key on 0
     // hoặc nhiều hơn
@@ -403,7 +357,7 @@ export class InitInstancedMesh {
     this.initLsystem()
 
     this.outputPosIntances = this.device.createBuffer({
-      size: this.numInstances * 24 * 4 * 4, // 36 vertices, vec4<f32> = 16 bytes
+      size: this.numInstances * cubeVertexCount * 4 * 4, // 36 vertices, vec4<f32> = 16 bytes
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC,
     });
     this.rlsPassComputeBindGroup = this.device.createBindGroup({
@@ -473,12 +427,44 @@ export class InitInstancedMesh {
       ],
     });
 
-    this.initCompute({
+    this.initComputeRls({
+      buffer: [this.pointsBuffer, segmentMetaBuffer, extrasMetaBuffer]
+    })
+    this.initComputeFk({
       buffer: [this.pointsBuffer, segmentMetaBuffer, extrasMetaBuffer]
     })
   }
+  async initComputeFk({ buffer }: any) {
+    console.log(this.segmentsOut,this.segmentsOut.length * 6,this.resultBufferSeg)
+    const countDepth = 4
+     this.computeFkBGL = this.device.createBindGroupLayout({
+      label: 'compute fk group layout  rls',
+      entries: [
+        {
+          binding: 0, // segment array<f32>
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        }
+      ],
+    });
+    this.computeFkBG = this.device.createBindGroup({
+      layout: this.computeFkBGL,
+      entries: [
+        {
+          binding: 0,
+          resource: { buffer: this.pointsBuffer  },
+        }
+      ],
+    });
 
-  async initCompute({ buffer }: any) {
+    this.computeFkPipeline = await initComputePipeline({
+      shader:fkComputeGpu,
+      device: this.device,
+      layout: [this.infoInstacne_Layout, this.compute_branchBindGroupLayout,this.computeFkBGL]
+    });
+
+  }
+  async initComputeRls({ buffer }: any) {
     this.rlsFkBindGroupLayout = this.device.createBindGroupLayout({
       label: 'compute group layout fk rls',
       entries: [
@@ -587,13 +573,21 @@ export class InitInstancedMesh {
     });
 
     this.computePipeline = await initComputePipeline({
+      shader:fkComputeCpu,
       device: this.device,
       layout: [this.infoInstacne_Layout, this.compute_branchBindGroupLayout,this.rlsFkBindGroupLayout]
     });
 
   }
-  getComputePipiline() {
-    return this.computePipeline
+
+  runComputePassFk(computePass) {
+    if (this.computeFkPipeline) {
+      computePass.setPipeline(this.computeFkPipeline);
+      computePass.setBindGroup(0, this.infoInstacne_BindGroup);
+      computePass.setBindGroup(1, this.compute_branchBindGroup);
+      computePass.setBindGroup(2, this.computeFkBG);
+      computePass.dispatchWorkgroups(64);
+    }
   }
   runComputePass(computePass) {
     if (this.computePipeline) {

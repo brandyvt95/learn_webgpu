@@ -94,9 +94,9 @@ fn updateGrid(@builtin(global_invocation_id) id: vec3<u32>) {
                 decodeFixedPoint(cells[id.x].vz)
             );
             float_v /= decodeFixedPoint(cells[id.x].mass);
-            
+          
             if (cellSquareDistToMouse < r * r) { 
-                let strength = (r * r - cellSquareDistToMouse) / (r * r) * 0.15;
+                let strength = (r * r - cellSquareDistToMouse) / (r * r) * 0.15 ;
                 cells[id.x].vx = encodeFixedPoint(float_v.x + strength * forceDir.x); 
                 cells[id.x].vy = encodeFixedPoint(float_v.y + strength * forceDir.y); 
                 cells[id.x].vz = encodeFixedPoint(float_v.z + strength * forceDir.z); 
@@ -110,9 +110,9 @@ fn updateGrid(@builtin(global_invocation_id) id: vec3<u32>) {
             var y: i32 = (i32(id.x) / i32(init_box_size.z)) % i32(init_box_size.y);
             var z: i32 = i32(id.x) % i32(init_box_size.z);
             // 整数を ceil したら，その整数に一致するかは確認する必要があり
-            if (x < 2 || x > i32(ceil(real_box_size.x) - 3)) { cells[id.x].vx = 0; } 
-            if (y < 2 || y > i32(ceil(real_box_size.y) - 3)) { cells[id.x].vy = 0; }
-            if (z < 2 || z > i32(ceil(real_box_size.z) - 3)) { cells[id.x].vz = 0; }
+            //if (x < 2 || x > i32(ceil(real_box_size.x) - 3)) { cells[id.x].vx = 0; } 
+            //if (y < 2 || y > i32(ceil(real_box_size.y) - 3)) { cells[id.x].vy = 0; }
+            //if (z < 2 || z > i32(ceil(real_box_size.z) - 3)) { cells[id.x].vz = 0; }
         }
     }
 }

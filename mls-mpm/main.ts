@@ -145,17 +145,17 @@ async function main() {
 	console.log("buffer allocating done")
 
 
-	let mlsmpmNumParticleParams = [30000, 60000, 100000]
-	let mlsmpmInitBoxSizes = [[52, 52, 52], [60, 60, 60], [72, 72, 72]]
-	let mlsmpmInitDistances = [60, 70, 90]
+	let mlsmpmNumParticleParams = [6000, 60000, 100000]
+	let mlsmpmInitBoxSizes = [[86, 72, 72], [60, 60, 60], [72, 72, 72]]
+	let mlsmpmInitDistances = [90, 70, 90]
 	let radiuses = [15, 20, 25]
-	let mouseRadiuses = [5, 6, 8]
-	let stretchStrength = [2.5, 2.0, 1.5]
+	let mouseRadiuses = [25, 6, 8]
+	let stretchStrength = [0., 2.0, 1.5]
 
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
 	// シミュレーション，カメラの初期化
 	const mlsmpmFov = 75 * Math.PI / 180
-	const mlsmpmRadius = 0.7
+	const mlsmpmRadius = 0.9
 	const mlsmpmDiameter = 2 * mlsmpmRadius
 	const mlsmpmZoomRate = 5.7
 	const depthMapTexture = device.createTexture({

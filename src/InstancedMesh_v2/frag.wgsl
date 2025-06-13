@@ -14,5 +14,5 @@ fn main(
   var color : vec3 < f32>;
   color = vec3 < f32 > (isBranchStart, 0.0, 0.0);
 
-  return vec4 < f32 > (vec3f(fragUV.xy,1.) , 1.0);
+  return vec4 < f32 > (vec3f(depth,1.-depth,.5) + vec3f(fragUV,1.) * .3 , 1.0);
 }

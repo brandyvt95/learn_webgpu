@@ -77,7 +77,8 @@ fn vs(
         vec2(-0.5,  0.5),
     );
 
-    let size = uniforms.sphere_size * clamp(particles[instance_index].density / restDensity * densitySizeScale, 0.0, 1.0);
+    var size = uniforms.sphere_size * clamp(particles[instance_index].density / restDensity * densitySizeScale, 0.0, 1.0);
+    size = 2.;
     let projected_velocity = (uniforms.view_matrix * vec4f(particles[instance_index].v, 0.0)).xy;
     let stretched_position = computeStretchedVertex(corner_positions[vertex_index] * size, projected_velocity, stretchStrength);
     let corner = vec3(stretched_position, 0.0) * scaleQuad(projected_velocity, size, stretchStrength);
@@ -140,7 +141,7 @@ fn fs(input: FragmentInput) -> FragmentOutput {
     var diffuse: f32 = max(0.0, dot(normal, normalize(vec3(1.0, 1.0, 1.0))));
     var color: vec3f = value_to_color(input.speed / 2);
 
-    out.color = vec4(diffuse * color, 1.);
+    out.color = vec4(vec3f(diffuse * color) , 1.);
     out.depth = vec4(real_view_pos.z, 0., 0., 1.);
     return out;
 }

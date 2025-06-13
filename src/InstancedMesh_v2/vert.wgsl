@@ -18,7 +18,7 @@ struct VertexOutput {
 //@group(2) @binding(0) var<storage, read> points : array<vec3 < f32>>;
 // @group(2) @binding(0) var<storage, read> SEGMENT_COORD : array<f32>;
 // @group(2) @binding(1) var<storage, read> segmentMeta : array<vec4 < u32>>;
-// @group(2) @binding(2) var<storage, read> extraMeta : array<u32>;
+@group(2) @binding(2) var<storage, read> extraMeta : array<u32>;
 @group(3) @binding(0) var<storage, read> outputPassCompute : array<vec4<f32>>;
 @vertex
 fn main(
@@ -39,6 +39,14 @@ fn main(
 
   output.fragUV = uv;
   output.fragPosition = rlsPos * 10.;
-  output.instanceIdx = instanceIdx;
+
+
+  let extrasLength = extraMeta[0];
+  let lengthBuffer_SEGMENT_COORD = extraMeta[extrasLength];
+  let maxId = lengthBuffer_SEGMENT_COORD / 6u;
+  let loopSize = maxId + 1u;
+  let checkId = instanceIdx % loopSize;
+
+  output.instanceIdx = checkId;
   return output;
 }
