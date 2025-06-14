@@ -86,44 +86,36 @@ fn sdBoxWobbly(p: vec3<f32>, b: vec3<f32>, t: f32) -> f32 {
     return blended + wobble * 0.;
 }
 fn sdRotatingBoxSimple(p: vec3<f32>, b: vec3<f32>, dt: f32) -> f32 {
-   return sdBoxWobbly(p, b, dt);
+   return sdBoxWobbly(p, b, 0.);
 }
 fn sampleSDF(
     sdfTex: texture_2d<f32>,
     pos: vec3<f32>,
     real_box_size: vec3<f32>, // [64, 64, 64]
-    sliceSize: vec2<i32>,     // [128, 128]
+    sliceSize: vec2<i32>,     // [128, 128] 
     numSlicesXY: vec2<i32>    // [16, 8]
 ) -> vec4<f32> {
-    // Normalize về [0,1]
-    let normalized = pos / real_box_size;
+    // Bước 1: Chuyển đổi vị trí từ không gian thực sang không gian normalized [0,1]
+    let normalizedPos = pos / real_box_size;
     
-    // Bounds check
-    if (any(normalized < vec3<f32>(0.0)) || any(normalized > vec3<f32>(1.0))) {
-       // return vec4<f32>(1.0, 0.0, 0.0, 1.0); // Red = out of bounds
-    }
+    // Bước 2: Chuyển đổi sang không gian voxel grid (SDF có resolution 128x128x128)
+    let sdfResolution = vec3<f32>(128.0, 128.0, 128.0);
+    let voxelPos = normalizedPos * (sdfResolution - 1.0);
     
-    // Map to SDF voxel space [0, 127] (không phải [0, 128])
-    let voxelPos = normalized * f32(sliceSize.x - 1); // 127.0
-    let voxelI = vec3<i32>(round(voxelPos)); // Dùng round thay vì floor
+    // Bước 3: Tính toán slice index và vị trí trong slice
+    let z = i32(clamp(voxelPos.z, 0.0, 127.0));
+    let sliceY = z / numSlicesXY.x;  // slice row
+    let sliceX = z % numSlicesXY.x;  // slice column
     
-    // Clamp chặt chẽ
-    let maxIdx = sliceSize.x - 1; // 127
-    let x = clamp(voxelI.x, 0, maxIdx);
-    let y = clamp(voxelI.y, 0, maxIdx);
-    let z = clamp(voxelI.z, 0, maxIdx);
+    // Bước 4: Tính toán tọa độ pixel cuối cùng
+    let sliceOffsetX = sliceX * sliceSize.x;
+    let sliceOffsetY = sliceY * sliceSize.y;
     
-    // Slice layout: 16x8 = 128 slices
-    let sliceCoord = vec2<i32>(
-        z % numSlicesXY.x,  // z % 16
-        z / numSlicesXY.x   // z / 16
-    );
+    let pixelX = sliceOffsetX + i32(clamp(voxelPos.x, 0.0, 127.0));
+    let pixelY = sliceOffsetY + i32(clamp(voxelPos.y, 0.0, 127.0));
     
-    let texCoord = vec2<i32>(
-        clamp(sliceCoord.x * sliceSize.x + x, 0, 2047),
-        clamp(sliceCoord.y * sliceSize.y + y, 0, 1023)
-    );
-    return textureLoad(sdfTex, texCoord, 0);
+    // Bước 5: Lấy mẫu từ texture bằng textureLoad
+    return textureLoad(sdfTex, vec2<i32>(pixelX, pixelY), 0);
 }
 fn getSDFForce(
     position: vec3<f32>,
@@ -150,12 +142,12 @@ fn getSDFForce(
     let innerThreshold = stepCheck - 0.05; // gần trung tâm object (bên trong)
     let outerThreshold = stepCheck;  // xa trung tâm object (bên ngoài)
 
-  if (distance > outerThreshold) {
-    return -gradient  * forceStrength * (distance-outerThreshold);
-} else  {
-    // Trong khoảng an toàn → không tác động lực
-    return vec3<f32>(0.0);
-}
+    if (distance > outerThreshold) {
+        return - gradient  * forceStrength * (distance-outerThreshold*0.) * sign(dirCenter);
+    } else  {
+        // Trong khoảng an toàn → không tác động lực
+        return vec3<f32>(dirCenter * 0.001);
+    }
 
   //return vec3f(0.);
     
@@ -214,69 +206,45 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
             clamp(particles[id.x].position.y, 1., real_box_size.y - 2.), 
             clamp(particles[id.x].position.z, 1., real_box_size.z - 2.)
         );
-
+        // particles[id.x].v += vec3f(0.,grciti,0.);   
         let center = vec3f(real_box_size.x / 2, real_box_size.y / 2, real_box_size.z / 2);
-         //  let dist = center - particles[id.x].position ;
-        let dist = particles[id.x].position - center;
+        //  let dist = center - particles[id.x].position ;
+         let dist = particles[id.x].position - center;
         let dirToOrigin = normalize(dist);
         var rForce = vec3f(0);
 
         let r = .5; 
 
         if (dot(dist, dist) < r * r) {
-        // particles[id.x].v += -(r - sqrt(dot(dist, dist))) * dirToOrigin * 3.0;
+            // particles[id.x].v += -(r - sqrt(dot(dist, dist))) * dirToOrigin * 3.0;
         }
 
+        // particles[id.x].v += dirToOrigin * 0.1;
    
-
-
-        //real_box_size.xyz = 72,72,72
-        //particles[id.x].position chinh la vi tri hat
 
         let sdfForce = getSDFForce(particles[id.x].position, sdfTex, real_box_size,dirToOrigin);
     
+        particles[id.x].v += sdfForce + vec3f(0.,0.,0.);     
+        let boxParams = vec3<f32>(real_box_size.x * .2);
+        //  let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;
+        //  let distanceSphere = sdSphereShrinkSurface(dist , .2,timeCount);
+        let distanceBox = sdRotatingBoxSimple(dist , boxParams,timeCount);
+        //  let distanceTorus = sdTorus(dist, torusParams);
 
-   particles[id.x].v += sdfForce * 1. + timeCount * 0.;     
-  let boxParams = vec3<f32>(real_box_size.x * .2);
-    //    let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;
-
-    //     let distanceSphere = sdSphereShrinkSurface(dist , .2,timeCount);
-
-   let distanceBox = sdRotatingBoxSimple(dist , boxParams,timeCount);
-    //  let distanceTorus = sdTorus(dist, torusParams);
-
-        
-    let distance  = distanceBox;
-     let params_shape = boxParams;
-   let epsilon = 0.1;
-       
-         let gradient = vec3<f32>(
-             sdRotatingBoxSimple(dist + vec3<f32>(epsilon, 0.0, 0.0), params_shape,timeCount) - distance,
-             sdRotatingBoxSimple(dist + vec3<f32>(0.0, epsilon, 0.0), params_shape,timeCount) - distance,
-             sdRotatingBoxSimple(dist + vec3<f32>(0.0, 0.0, epsilon), params_shape,timeCount) - distance
-         ) / epsilon;
+        let distance  = distanceBox;
+        let params_shape = boxParams;
+        let epsilon = 0.1;
+        let gradient = vec3<f32>(
+            sdRotatingBoxSimple(dist + vec3<f32>(epsilon, 0.0, 0.0), params_shape,timeCount) - distance,
+            sdRotatingBoxSimple(dist + vec3<f32>(0.0, epsilon, 0.0), params_shape,timeCount) - distance,
+            sdRotatingBoxSimple(dist + vec3<f32>(0.0, 0.0, epsilon), params_shape,timeCount) - distance
+        ) / epsilon;
          if (distance < 0.) { // clamp vel step
-          // particles[id.x].v += -distance * normalize(gradient) * 4.0 ;
-         }else{
-         //particles[id.x].v += -normalize(gradient) * 0.1;
-         }
+         //  particles[id.x].v += -distance * normalize(gradient) * 4.0 ;
+        }else{
+          // particles[id.x].v += -normalize(gradient) * 0.1;
+        }
      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

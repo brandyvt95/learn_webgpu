@@ -11,9 +11,9 @@ import { numParticlesMax, renderUniformsViews } from '../common'
 export const mlsmpmParticleStructSize = 80
 
 export class MLSMPMSimulator {
-    max_x_grids = 130;
-    max_y_grids = 130;
-    max_z_grids = 130;
+    max_x_grids = 86;
+    max_y_grids = 86;
+    max_z_grids = 86;
     cellStructSize = 16;
     realBoxSizeBuffer: GPUBuffer
     initBoxSizeBuffer: GPUBuffer
@@ -74,10 +74,10 @@ export class MLSMPMSimulator {
         const g2pModule = device.createShaderModule({ code: g2p });
         const copyPositionModule = device.createShaderModule({ code: copyPosition });
 
-        this.restDensity = .3
+        this.restDensity = 4.
 
         const constants = {
-            stiffness: 1, 
+            stiffness: 3., 
             restDensity: this.restDensity, 
             dynamic_viscosity: 0.1, 
             dt: 0.20, 
@@ -238,6 +238,8 @@ export class MLSMPMSimulator {
                 { binding: 4, resource: { buffer: this.densityBuffer }}
             ]
         })
+         const sdfTextureView = sdfTexture.createView();
+
         this.updateGridBindGroup = device.createBindGroup({
             layout: this.updateGridPipeline.getBindGroupLayout(0),
             entries: [
@@ -257,7 +259,7 @@ export class MLSMPMSimulator {
             addressModeV: 'clamp-to-edge', // Quan trọng!
         });
 
-        const sdfTextureView = sdfTexture.createView();
+       
         this.g2pBindGroup = device.createBindGroup({
             layout: this.g2pPipeline.getBindGroupLayout(0),
             entries: [

@@ -67,11 +67,12 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
 
     var density = 0.7; 
     
-    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0).r;
+    var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0);
 
-    // var diffuseColor = vec3f(1.0, 1.0, 1.0);
-    var diffuseColor = vec3f(0.0, 0.7375, 0.95);
-    var transmittance: vec3f = exp(-density * thickness * (1.0 - diffuseColor)); 
+    // var diffuseColor = vec3f(1.0, 0.01, 1.0);
+   // var diffuseColor = vec3f(0.0, 0.7375, 0.95);
+   var diffuseColor = vec3f(255./255., 244./255., 164./255.);
+    var transmittance: vec3f = exp(-density * thickness.r * (1.0 - diffuseColor)); 
     var refractionColor: vec3f = bgColor * transmittance;
 
     let F0 = 0.02;
@@ -88,7 +89,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
         return vec4f(mix(finalColor, vec3f(0.9), 0.4), 1.0);
     }
 
-    return vec4f(finalColor, 1.0);
+   return vec4f(finalColor , 1.0);
 
     // return vec4f(viewPos.y * 100, 0, 0, 1.0);
 
@@ -103,7 +104,7 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     // return vec4f(vec3f(normal.y, 0, 0), 1);
     // return vec4f(vec3f(normal.z, 0, 0), 1);
     // specular だけ
-    // return vec4f(vec3f(specular), 1);
+    //return vec4f(vec3f(specular), 1);
     // reflection だけ
     // return vec4f(reflectionColor, 1.);
     // return vec4f(fresnel, 0., 0., 1.);
