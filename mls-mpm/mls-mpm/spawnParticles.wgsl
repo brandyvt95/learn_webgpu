@@ -18,9 +18,9 @@ fn spawn() {
 
     let dummy = numParticles;
 
-    for (var i = 0; i < 10; i++) {
-        for (var j = 0; j < 10; j++) {
-            var offset = 10 * i + j;
+    for (var i = 0; i < 20; i++) {
+        for (var j = 0; j < 20; j++) {
+            var offset = 20 * i + j;
             let pos = beg + vec3f(f32(i), f32(j), 0) * dx;
             particles[(numParticles - 1) - offset].position = pos;
             let vDir = normalize(center - pos);

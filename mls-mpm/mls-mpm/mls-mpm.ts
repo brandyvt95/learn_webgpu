@@ -56,8 +56,9 @@ export class MLSMPMSimulator {
 
     restDensity: number
 
+    sdfTexture:GPUTexture
     constructor (particleBuffer: GPUBuffer, posvelBuffer: GPUBuffer, renderDiameter: number, device: GPUDevice, 
-        renderUniformBuffer: GPUBuffer, depthMapTextureView: GPUTextureView, canvas: HTMLCanvasElement) 
+        renderUniformBuffer: GPUBuffer, depthMapTextureView: GPUTextureView, canvas: HTMLCanvasElement,sdfTexture:GPUTexture) 
     {
         this.device = device
         this.renderDiameter = renderDiameter
@@ -248,6 +249,13 @@ export class MLSMPMSimulator {
                 { binding: 5, resource: { buffer: this.mouseInfoUniformBuffer }}, 
             ],
         })
+        
+        const sdfSampler = device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+        });
+
+        const sdfTextureView = sdfTexture.createView();
         this.g2pBindGroup = device.createBindGroup({
             layout: this.g2pPipeline.getBindGroupLayout(0),
             entries: [
@@ -256,8 +264,10 @@ export class MLSMPMSimulator {
                 { binding: 2, resource: { buffer: this.realBoxSizeBuffer }},
                 { binding: 3, resource: { buffer: this.initBoxSizeBuffer }},
                 { binding: 4, resource: { buffer: this.numParticlesBuffer }}, 
-              { binding: 5, resource: { buffer: this.sphereRadiusBuffer }}, 
-            ],
+                { binding: 5, resource: { buffer: this.sphereRadiusBuffer }}, 
+                { binding: 6, resource: sdfTextureView}, 
+             //   { binding: 7, resource: sdfSampler }
+            ] as any,
         })
         this.copyPositionBindGroup = device.createBindGroup({
             layout: this.copyPositionPipeline.getBindGroupLayout(0),

@@ -4,6 +4,7 @@ import { Camera } from './camera'
 import { mlsmpmParticleStructSize, MLSMPMSimulator } from './mls-mpm/mls-mpm'
 import { renderUniformsViews, renderUniformsValues, numParticlesMax } from './common'
 import { FluidRenderer } from './render/fluidRender'
+import { sdfBakedFrame } from './sdfBakedFrame'
 
 /// <reference types="@webgpu/types" />
 
@@ -51,11 +52,43 @@ function sleep(ms: number): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
   
+async function loadTextures({ device, desc }: { device: GPUDevice, desc?: any[] }) {
+  const imgSrcs = ['/pighead.png']; // 👈 cần là mảng nếu dùng .map
+  const imageBitmaps = await Promise.all(
+    imgSrcs.map(async (src) => {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      return await createImageBitmap(blob);
+    })
+  );
+
+  return imageBitmaps; // hoặc { images: imageBitmaps } nếu bạn muốn trả về dạng object
+}
+function createTextureFromBitmap(device: GPUDevice, bitmap: ImageBitmap) {
+  const texture = device.createTexture({
+    size: [bitmap.width, bitmap.height],
+    format: 'rgba8unorm',
+    usage:
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_DST |
+      GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+
+  device.queue.copyExternalImageToTexture(
+    { source: bitmap },
+    { texture: texture },
+    [bitmap.width, bitmap.height]
+  );
+
+  return texture;
+}
 
 async function main() {
 	const { canvas, device, presentationFormat, context } = await init();
+	const imageBitmaps = await loadTextures({ device });
+const sdfTexture = createTextureFromBitmap(device, imageBitmaps[0]);
 
-	// ボタン押下の監視
+
 	let numberButtonForm = document.getElementById('number-button') as HTMLFormElement;
 	let numberButtonPressed = false;
 	let numberButtonPressedButton = "0"
@@ -145,8 +178,8 @@ async function main() {
 	console.log("buffer allocating done")
 
 
-	let mlsmpmNumParticleParams = [6000, 60000, 100000]
-	let mlsmpmInitBoxSizes = [[86, 72, 72], [60, 60, 60], [72, 72, 72]]
+	let mlsmpmNumParticleParams = [30000, 60000, 100000]
+	let mlsmpmInitBoxSizes = [[72, 72, 72], [60, 60, 60], [72, 72, 72]]
 	let mlsmpmInitDistances = [90, 70, 90]
 	let radiuses = [15, 20, 25]
 	let mouseRadiuses = [25, 6, 8]
@@ -165,7 +198,7 @@ async function main() {
 		format: 'r32float',
 	});
 	const depthMapTextureView = depthMapTexture.createView()
-	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device, renderUniformBuffer, depthMapTextureView, canvas)
+	const mlsmpmSimulator = new MLSMPMSimulator(particleBuffer, posvelBuffer, mlsmpmDiameter, device, renderUniformBuffer, depthMapTextureView, canvas,sdfTexture)
 	const mlsmpmRenderer = new FluidRenderer(device, canvas, presentationFormat, mlsmpmRadius, mlsmpmFov, posvelBuffer, renderUniformBuffer, 
 		cubemapTextureView, depthMapTextureView, mlsmpmSimulator.restDensity)
 
