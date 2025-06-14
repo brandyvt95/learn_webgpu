@@ -53,7 +53,7 @@ function sleep(ms: number): Promise<void> {
 }
   
 async function loadTextures({ device, desc }: { device: GPUDevice, desc?: any[] }) {
-  const imgSrcs = ['/pighead.png']; // 👈 cần là mảng nếu dùng .map
+  const imgSrcs = ['/sdf.png']; // 👈 cần là mảng nếu dùng .map
   const imageBitmaps = await Promise.all(
     imgSrcs.map(async (src) => {
       const response = await fetch(src);
@@ -67,7 +67,7 @@ async function loadTextures({ device, desc }: { device: GPUDevice, desc?: any[] 
 function createTextureFromBitmap(device: GPUDevice, bitmap: ImageBitmap) {
   const texture = device.createTexture({
     size: [bitmap.width, bitmap.height],
-    format: 'rgba8unorm',
+    format: 'rgba32float',
     usage:
       GPUTextureUsage.TEXTURE_BINDING |
       GPUTextureUsage.COPY_DST |
@@ -178,19 +178,19 @@ const sdfTexture = createTextureFromBitmap(device, imageBitmaps[0]);
 	console.log("buffer allocating done")
 
 
-	let mlsmpmNumParticleParams = [30000, 60000, 100000]
-	let mlsmpmInitBoxSizes = [[72, 72, 72], [60, 60, 60], [72, 72, 72]]
-	let mlsmpmInitDistances = [90, 70, 90]
-	let radiuses = [15, 20, 25]
-	let mouseRadiuses = [25, 6, 8]
-	let stretchStrength = [0., 2.0, 1.5]
+	let mlsmpmNumParticleParams = [10000, 60000, 100000]
+	let mlsmpmInitBoxSizes = [[64, 64, 64], [60, 60, 60], [72, 72, 72]]
+	let mlsmpmInitDistances = [64, 64, 64]
+	let radiuses = [10, 20, 25]
+	let mouseRadiuses = [15, 6, 8]
+	let stretchStrength = [2., 2.0, 1.5]
 
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
 	// シミュレーション，カメラの初期化
 	const mlsmpmFov = 75 * Math.PI / 180
 	const mlsmpmRadius = 0.9
 	const mlsmpmDiameter = 2 * mlsmpmRadius
-	const mlsmpmZoomRate = 5.7
+	const mlsmpmZoomRate = 10.7
 	const depthMapTexture = device.createTexture({
 		label: 'depth map texture', 
 		size: [canvas.width, canvas.height, 1],

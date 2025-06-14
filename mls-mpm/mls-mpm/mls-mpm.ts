@@ -11,9 +11,9 @@ import { numParticlesMax, renderUniformsViews } from '../common'
 export const mlsmpmParticleStructSize = 80
 
 export class MLSMPMSimulator {
-    max_x_grids = 80;
-    max_y_grids = 80;
-    max_z_grids = 80;
+    max_x_grids = 130;
+    max_y_grids = 130;
+    max_z_grids = 130;
     cellStructSize = 16;
     realBoxSizeBuffer: GPUBuffer
     initBoxSizeBuffer: GPUBuffer
@@ -74,10 +74,10 @@ export class MLSMPMSimulator {
         const g2pModule = device.createShaderModule({ code: g2p });
         const copyPositionModule = device.createShaderModule({ code: copyPosition });
 
-        this.restDensity = .9
+        this.restDensity = .3
 
         const constants = {
-            stiffness: 3., 
+            stiffness: 1, 
             restDensity: this.restDensity, 
             dynamic_viscosity: 0.1, 
             dt: 0.20, 
@@ -250,9 +250,11 @@ export class MLSMPMSimulator {
             ],
         })
         
-        const sdfSampler = device.createSampler({
+        const sampler = device.createSampler({
             magFilter: 'linear',
             minFilter: 'linear',
+            addressModeU: 'clamp-to-edge', // Quan trọng!
+            addressModeV: 'clamp-to-edge', // Quan trọng!
         });
 
         const sdfTextureView = sdfTexture.createView();
@@ -266,7 +268,7 @@ export class MLSMPMSimulator {
                 { binding: 4, resource: { buffer: this.numParticlesBuffer }}, 
                 { binding: 5, resource: { buffer: this.sphereRadiusBuffer }}, 
                 { binding: 6, resource: sdfTextureView}, 
-             //   { binding: 7, resource: sdfSampler }
+             //{ binding: 7, resource: sampler }
             ] as any,
         })
         this.copyPositionBindGroup = device.createBindGroup({

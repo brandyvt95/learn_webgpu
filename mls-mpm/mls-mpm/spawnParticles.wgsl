@@ -12,19 +12,19 @@ struct Particle {
 fn spawn() {
     let dx: f32 = 0.5;
     let center: vec3f = init_box_size / 2;
-    let beg: vec3f = vec3f(center.x, 5, 5);
-    let base: vec3f = beg + vec3f(4.5 * dx, 4.5 * dx, 0);
-    let vScale: f32 = 0.6;
+    let beg: vec3f = vec3f(center.x, center.x, center.x);
+    let base: vec3f = beg + vec3f(1.5 * dx, 1.5 * dx, 0);
+    let vScale: f32 = 0.1;
 
     let dummy = numParticles;
-
-    for (var i = 0; i < 20; i++) {
-        for (var j = 0; j < 20; j++) {
-            var offset = 20 * i + j;
+    let swp = 10;
+    for (var i = 0; i < swp; i++) {
+        for (var j = 0; j < swp; j++) {
+            var offset = swp * i + j;
             let pos = beg + vec3f(f32(i), f32(j), 0) * dx;
             particles[(numParticles - 1) - offset].position = pos;
             let vDir = normalize(center - pos);
-            particles[(numParticles - 1) - offset].v = vDir * vScale; // 一定
+            particles[(numParticles - 1) - offset].v = vDir * vScale ; // 一定
             particles[(numParticles - 1) - offset].C = mat3x3f(vec3f(0.), vec3f(0.), vec3f(0.));
         }
     }

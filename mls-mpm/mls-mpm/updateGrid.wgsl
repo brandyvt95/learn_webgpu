@@ -96,7 +96,7 @@ fn updateGrid(@builtin(global_invocation_id) id: vec3<u32>) {
             float_v /= decodeFixedPoint(cells[id.x].mass);
           
             if (cellSquareDistToMouse < r * r) { 
-                let strength = (r * r - cellSquareDistToMouse) / (r * r) * 0.15 ;
+                let strength = (r * r - cellSquareDistToMouse) / (r * r) * 0.35 ;
                 cells[id.x].vx = encodeFixedPoint(float_v.x + strength * forceDir.x); 
                 cells[id.x].vy = encodeFixedPoint(float_v.y + strength * forceDir.y); 
                 cells[id.x].vz = encodeFixedPoint(float_v.z + strength * forceDir.z); 

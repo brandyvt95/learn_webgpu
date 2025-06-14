@@ -91,61 +91,45 @@ fn sdRotatingBoxSimple(p: vec3<f32>, b: vec3<f32>, dt: f32) -> f32 {
 fn sampleSDF(
     sdfTex: texture_2d<f32>,
     pos: vec3<f32>,
-    real_box_size: vec3<f32>,
-    sliceSize: vec2<i32>,
-    numSlicesXY: vec2<i32>,
-    scale: f32
+    real_box_size: vec3<f32>, // [64, 64, 64]
+    sliceSize: vec2<i32>,     // [128, 128]
+    numSlicesXY: vec2<i32>    // [16, 8]
 ) -> vec4<f32> {
-    
-    let center = real_box_size * 0.5;
-    let scaledPos = (pos - center) * scale + center;
-    
     // Normalize về [0,1]
-    let normalized = scaledPos / real_box_size;
+    let normalized = pos / real_box_size;
     
+    // Bounds check
     if (any(normalized < vec3<f32>(0.0)) || any(normalized > vec3<f32>(1.0))) {
-        return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+       // return vec4<f32>(1.0, 0.0, 0.0, 1.0); // Red = out of bounds
     }
     
-    // Scale đến SDF resolution (128x128x128)
-    let sdfResolution = vec3<f32>(128.0, 128.0, 128.0);
-    let voxelPos = normalized * sdfResolution;
+    // Map to SDF voxel space [0, 127] (không phải [0, 128])
+    let voxelPos = normalized * f32(sliceSize.x - 1); // 127.0
+    let voxelI = vec3<i32>(round(voxelPos)); // Dùng round thay vì floor
     
-    // Downsample: lấy mỗi pixel thứ 2 (128->64 effective resolution)
-    let downsampleFactor = 2.0;
-    let sampledVoxelPos = voxelPos / downsampleFactor;
+    // Clamp chặt chẽ
+    let maxIdx = sliceSize.x - 1; // 127
+    let x = clamp(voxelI.x, 0, maxIdx);
+    let y = clamp(voxelI.y, 0, maxIdx);
+    let z = clamp(voxelI.z, 0, maxIdx);
     
-    let voxelI = vec3<i32>(sampledVoxelPos);
-    
-    // Clamp với resolution đã downsample
-    let maxIndex = vec3<i32>(i32(128.0 / downsampleFactor) - 1); // 63
-    let x = clamp(voxelI.x, 0, maxIndex.x);
-    let y = clamp(voxelI.y, 0, maxIndex.y);
-    let z = clamp(voxelI.z, 0, maxIndex.z);
-    
-    // Scale lại lên để index đúng trong texture 128x128
-    let actualX = x * i32(downsampleFactor);
-    let actualY = y * i32(downsampleFactor);
-    let actualZ = z * i32(downsampleFactor);
-    
-    // Tính slice coordinate
+    // Slice layout: 16x8 = 128 slices
     let sliceCoord = vec2<i32>(
-        actualZ % numSlicesXY.x,
-        actualZ / numSlicesXY.x
+        z % numSlicesXY.x,  // z % 16
+        z / numSlicesXY.x   // z / 16
     );
     
     let texCoord = vec2<i32>(
-        sliceCoord.x * sliceSize.x + actualX,
-        sliceCoord.y * sliceSize.y + actualY
+        clamp(sliceCoord.x * sliceSize.x + x, 0, 2047),
+        clamp(sliceCoord.y * sliceSize.y + y, 0, 1023)
     );
-    
     return textureLoad(sdfTex, texCoord, 0);
 }
 fn getSDFForce(
     position: vec3<f32>,
     sdfTex: texture_2d<f32>,
     real_box_size: vec3<f32>,
-      scale: f32  
+      dirCenter : vec3<f32>,
 ) -> vec3<f32> {
     
     // Sample SDF
@@ -154,25 +138,27 @@ fn getSDFForce(
         position, 
         real_box_size,
         vec2<i32>(128, 128),
-        vec2<i32>(16, 8),
-        scale
+        vec2<i32>(16, 8)
     );
     
     let gradient = normalize(sdf.rgb);    // Gradient vector
     let distance = sdf.a;      // SDF distance
-    
-    // Nếu ở trong object (distance < 0) -> đẩy ra
-   if (distance > 0.5) {
-    let forceStrength = 0.2;
-    return -gradient * forceStrength * distance;  // Bỏ abs() để lực mạnh hơn khi xa
-} else if (distance < 0.3) {  // Thêm điều kiện này
-    let forceStrength = 0.2;
-    return gradient * forceStrength * (0.3 - distance);  // Đẩy ra khi quá gần
-} else {
-    return vec3<f32>(0.0);  // Vùng an toàn 0.3 - 0.5
+    let forceStrength = 1.;
+
+    let stepCheck = .48; // bear
+    //let stepCheck = .45;//rubber
+    let innerThreshold = stepCheck - 0.05; // gần trung tâm object (bên trong)
+    let outerThreshold = stepCheck;  // xa trung tâm object (bên ngoài)
+
+  if (distance > outerThreshold) {
+    return -gradient  * forceStrength * (distance-outerThreshold);
+} else  {
+    // Trong khoảng an toàn → không tác động lực
+    return vec3<f32>(0.0);
 }
+
+  //return vec3f(0.);
     
- 
 }
 
 @compute @workgroup_size(64)
@@ -214,9 +200,9 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
                         weighted_velocity * cell_dist.z
                     );
 
-                    B += term;
+                    B += term ;
 
-                    particles[id.x].v += weighted_velocity * .99995;
+                    particles[id.x].v += weighted_velocity * .95;
                 }
             }
         }
@@ -235,50 +221,45 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
         let dirToOrigin = normalize(dist);
         var rForce = vec3f(0);
 
-        let r = 1.; 
+        let r = .5; 
 
         if (dot(dist, dist) < r * r) {
         // particles[id.x].v += -(r - sqrt(dot(dist, dist))) * dirToOrigin * 3.0;
         }
 
-        // particles[id.x].v += (dirToOrigin * 0.3) ;
+   
 
 
         //real_box_size.xyz = 72,72,72
         //particles[id.x].position chinh la vi tri hat
 
-        let sliceSizeX = 128;
-        let sliceSizeY = 128;
-        let totalSliceOnXSdf = 16;
-        let totalSliceonYSdf = 8;
-        let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,.7);
+        let sdfForce = getSDFForce(particles[id.x].position, sdfTex, real_box_size,dirToOrigin);
     
 
-     particles[id.x].v += sdfForce + timeCount * 0.;
-    
-    //    let boxParams = vec3<f32>(real_box_size.x * .2);
+   particles[id.x].v += sdfForce * 1. + timeCount * 0.;     
+  let boxParams = vec3<f32>(real_box_size.x * .2);
     //    let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;
 
     //     let distanceSphere = sdSphereShrinkSurface(dist , .2,timeCount);
 
-    //    let distanceBox = sdRotatingBoxSimple(dist , boxParams,timeCount);
+   let distanceBox = sdRotatingBoxSimple(dist , boxParams,timeCount);
     //  let distanceTorus = sdTorus(dist, torusParams);
 
         
-    //     let distance  = distanceBox;
-    //     let params_shape = boxParams;
-    //     let epsilon = 0.1;
+    let distance  = distanceBox;
+     let params_shape = boxParams;
+   let epsilon = 0.1;
        
-        // let gradient = vec3<f32>(
-        //     sdRotatingBoxSimple(dist + vec3<f32>(epsilon, 0.0, 0.0), params_shape,timeCount) - distance,
-        //     sdRotatingBoxSimple(dist + vec3<f32>(0.0, epsilon, 0.0), params_shape,timeCount) - distance,
-        //     sdRotatingBoxSimple(dist + vec3<f32>(0.0, 0.0, epsilon), params_shape,timeCount) - distance
-        // ) / epsilon;
-        // if (distance < 0.) { // clamp vel step
-        //   // particles[id.x].v += -distance * normalize(gradient) * 4.0 ;
-        // }else{
-        //  //particles[id.x].v += -normalize(gradient) * 0.1;
-        // }
+         let gradient = vec3<f32>(
+             sdRotatingBoxSimple(dist + vec3<f32>(epsilon, 0.0, 0.0), params_shape,timeCount) - distance,
+             sdRotatingBoxSimple(dist + vec3<f32>(0.0, epsilon, 0.0), params_shape,timeCount) - distance,
+             sdRotatingBoxSimple(dist + vec3<f32>(0.0, 0.0, epsilon), params_shape,timeCount) - distance
+         ) / epsilon;
+         if (distance < 0.) { // clamp vel step
+          // particles[id.x].v += -distance * normalize(gradient) * 4.0 ;
+         }else{
+         //particles[id.x].v += -normalize(gradient) * 0.1;
+         }
      
 
 
@@ -299,7 +280,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
 
 
-
+      
         let k = 3.;
         let wall_stiffness = 1.0;
         let x_n: vec3f = particles[id.x].position + particles[id.x].v * dt * k;
