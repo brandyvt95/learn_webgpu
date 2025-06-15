@@ -133,21 +133,25 @@ fn getSDFForce(
         vec2<i32>(16, 8)
     );
     
-    let gradient = normalize(sdf.rgb);    // Gradient vector
+    let gradient = normalize(sdf.rgb * 2. - 1.);    // Gradient vector
     let distance = sdf.a;      // SDF distance
     let forceStrength = 1.;
 
-    let stepCheck = .48; // bear
+    let stepCheck = .3; // bear
     //let stepCheck = .45;//rubber
     let innerThreshold = stepCheck - 0.05; // gần trung tâm object (bên trong)
     let outerThreshold = stepCheck;  // xa trung tâm object (bên ngoài)
 
-    if (distance > outerThreshold) {
-        return - gradient  * forceStrength * (distance-outerThreshold*0.) * sign(dirCenter);
-    } else  {
-        // Trong khoảng an toàn → không tác động lực
-        return vec3<f32>(dirCenter * 0.001);
-    }
+if (distance > outerThreshold) {
+    // Lực đẩy mạnh khi quá xa
+    return -gradient * forceStrength * (distance - outerThreshold);
+} else if (distance < innerThreshold) {
+    // Lực đẩy khi quá gần
+    return gradient * 5. * (innerThreshold - distance);
+} else {
+    // Vùng an toàn
+    return vec3<f32>(0.0);
+}
 
   //return vec3f(0.);
     
@@ -194,7 +198,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
                     B += term ;
 
-                    particles[id.x].v += weighted_velocity * .95;
+                    particles[id.x].v += weighted_velocity * 1.;
                 }
             }
         }

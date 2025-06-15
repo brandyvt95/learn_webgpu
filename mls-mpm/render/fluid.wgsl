@@ -70,8 +70,8 @@ fn fs(input: FragmentInput) -> @location(0) vec4f {
     var thickness = textureLoad(thickness_texture, vec2u(input.iuv), 0);
 
     // var diffuseColor = vec3f(1.0, 0.01, 1.0);
-   // var diffuseColor = vec3f(0.0, 0.7375, 0.95);
-   var diffuseColor = vec3f(255./255., 244./255., 164./255.);
+  var diffuseColor = vec3f(0.0, 0.7375, 0.95);
+     //var diffuseColor = vec3f(255./255., 244./255., 164./255.);
     var transmittance: vec3f = exp(-density * thickness.r * (1.0 - diffuseColor)); 
     var refractionColor: vec3f = bgColor * transmittance;
 

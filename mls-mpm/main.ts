@@ -182,8 +182,8 @@ const sdfTexture = createTextureFromBitmap(device, imageBitmaps[0]);
 	let mlsmpmInitBoxSizes = [[64, 64, 64], [60, 60, 60], [72, 72, 72]]
 	let mlsmpmInitDistances = [64, 64, 64]
 	let radiuses = [10, 20, 25]
-	let mouseRadiuses = [15, 6, 8]
-	let stretchStrength = [2., 2.0, 1.5]
+	let mouseRadiuses = [10, 6, 8]
+	let stretchStrength = [1., 2.0, 1.5]
 
 	const canvasElement = document.getElementById("fluidCanvas") as HTMLCanvasElement;
 	// シミュレーション，カメラの初期化
