@@ -134,26 +134,24 @@ fn getSDFForce(
     );
     
     let gradient = normalize(sdf.rgb * 2. - 1.);    // Gradient vector
-    let distance = sdf.a;      // SDF distance
-    let forceStrength = 1.;
+    let distance = sdf.a * 2. - 1.;      // SDF distance
+    let forceStrength = .2;
 
-    let stepCheck = .3; // bear
-    //let stepCheck = .45;//rubber
-    let innerThreshold = stepCheck - 0.05; // gần trung tâm object (bên trong)
-    let outerThreshold = stepCheck;  // xa trung tâm object (bên ngoài)
+  let stepCheck = -0.8;
+let innerThreshold =  stepCheck + 0.1;  // Giảm xuống 0.05
+let outerThreshold = stepCheck;
 
-if (distance > outerThreshold) {
-    // Lực đẩy mạnh khi quá xa
-    return -gradient * forceStrength * (distance - outerThreshold);
+if (distance < 0.0) {
+    // Bên trong - đẩy mạnh ra ngoài  
+    return gradient * .2 * abs(distance) * 5.;
 } else if (distance < innerThreshold) {
-    // Lực đẩy khi quá gần
-    return gradient * 5. * (innerThreshold - distance);
+    return gradient * 1. * (innerThreshold - distance);  
+} else if (distance > outerThreshold) {
+    return -gradient * forceStrength * (distance - outerThreshold);
 } else {
-    // Vùng an toàn
-    return vec3<f32>(0.0);
+    return vec3f(0.);
 }
-
-  //return vec3f(0.);
+  
     
 }
 
@@ -226,28 +224,28 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
         // particles[id.x].v += dirToOrigin * 0.1;
    
 
-        let sdfForce = getSDFForce(particles[id.x].position, sdfTex, real_box_size,dirToOrigin);
+        let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin);
     
-        particles[id.x].v += sdfForce + vec3f(0.,0.,0.);     
+        particles[id.x].v += sdfForce * dt * 2.+ vec3f(0.,0.,0.);     
         let boxParams = vec3<f32>(real_box_size.x * .2);
         //  let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;
         //  let distanceSphere = sdSphereShrinkSurface(dist , .2,timeCount);
         let distanceBox = sdRotatingBoxSimple(dist , boxParams,timeCount);
         //  let distanceTorus = sdTorus(dist, torusParams);
 
-        let distance  = distanceBox;
-        let params_shape = boxParams;
-        let epsilon = 0.1;
-        let gradient = vec3<f32>(
-            sdRotatingBoxSimple(dist + vec3<f32>(epsilon, 0.0, 0.0), params_shape,timeCount) - distance,
-            sdRotatingBoxSimple(dist + vec3<f32>(0.0, epsilon, 0.0), params_shape,timeCount) - distance,
-            sdRotatingBoxSimple(dist + vec3<f32>(0.0, 0.0, epsilon), params_shape,timeCount) - distance
-        ) / epsilon;
-         if (distance < 0.) { // clamp vel step
+       // let distance  = distanceBox;
+       // let params_shape = boxParams;
+       // let epsilon = 0.1;
+        //let gradient = vec3<f32>(
+        //    sdRotatingBoxSimple(dist + vec3<f32>(epsilon, 0.0, 0.0), params_shape,timeCount) - distance,
+        //    sdRotatingBoxSimple(dist + vec3<f32>(0.0, epsilon, 0.0), params_shape,timeCount) - distance,
+        //    sdRotatingBoxSimple(dist + vec3<f32>(0.0, 0.0, epsilon), params_shape,timeCount) - distance
+        //) / epsilon;
+         //if (distance < 0.) { // clamp vel step
          //  particles[id.x].v += -distance * normalize(gradient) * 4.0 ;
-        }else{
+        //}else{
           // particles[id.x].v += -normalize(gradient) * 0.1;
-        }
+        //}
      
 
 
