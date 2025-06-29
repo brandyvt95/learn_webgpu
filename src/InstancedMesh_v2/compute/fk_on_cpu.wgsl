@@ -153,8 +153,10 @@ fn main(@builtin(global_invocation_id) global_id : vec3<u32>)
       let randX = randomFromSeed(seed);
       let randZ = randomFromSeed(seed + 1u);//Đổi seed một chút để không giống nhau
       
-     clusterCoord.x += sin(f32(loopCount) * 3.) * 4. ;
-     clusterCoord.z += cos(f32(loopCount)) * 4.;
+    // clusterCoord.x += sin(f32(loopCount) * 3.) * 4. ;
+   //  clusterCoord.z += cos(f32(loopCount)) * 4.;
+      clusterCoord.x +=randX  * 10.;
+     clusterCoord.z += randZ * 10.;
       break;
     }
   }

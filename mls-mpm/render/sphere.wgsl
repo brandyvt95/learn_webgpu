@@ -140,8 +140,8 @@ fn fs(input: FragmentInput) -> FragmentOutput {
 
     var diffuse: f32 = max(0.0, dot(normal, normalize(vec3(1.0, 1.0, 1.0))));
     var color: vec3f = value_to_color(input.speed / 2);
-
-    out.color = vec4(vec3f(diffuse * color) , 1.);
+    var diffuseColor = vec3f(0.0, 0.7375, 0.95);
+    out.color = vec4(vec3f(diffuseColor * color) , 1.);
     out.depth = vec4(real_view_pos.z, 0., 0., 1.);
     return out;
 }

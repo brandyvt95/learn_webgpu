@@ -343,6 +343,7 @@ export class FluidRenderer {
     execute(context: GPUCanvasContext, commandEncoder: GPUCommandEncoder, 
         numParticles: number, sphereRenderFl: boolean, stretchStrength: number) 
     {
+       
         const stretchStrengthValues = new ArrayBuffer(4)
         const stretchStrengthViews = new Float32Array(stretchStrengthValues)
         stretchStrengthViews.set([stretchStrength])

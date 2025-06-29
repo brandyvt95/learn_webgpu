@@ -95,7 +95,7 @@ export class InitInstancedMesh {
   computeFkBG:GPUBindGroup
   constructor({ device, presentationFormat, frameBindGroupLayout }: InitInstancedMeshOptions) {
     this.device = device;
-    this.numInstances = 5000
+    this.numInstances = 500
     this.presentationFormat = presentationFormat
     this.frameBindGroupLayout = frameBindGroupLayout
 
@@ -278,7 +278,7 @@ export class InitInstancedMesh {
     const config1: any = {
       axiom: "F",
       rules: {
-     "F": "F[+F][-F][&F][^F][/F][\\F]",
+     "F": "F[+F][-F][&F][^F]",
       "H": "H"
       }
       ,
@@ -329,10 +329,11 @@ export class InitInstancedMesh {
     const { points: point1, meta: segmentMeta1, origin: origin1 } = packSegments(segments1);
     const { points: point2, meta: segmentMeta2, origin: origin2 } = packSegments(segments2);
     const { points: point3, meta: segmentMeta3, origin: origin3 } = packSegments(segments3);
-    this.resultBufferSeg = mergerBuffer([point1], 'float32');
+    const list = [point1]
+    this.resultBufferSeg = mergerBuffer(list, 'float32');
     this.resultMeta = mergerBuffer([segmentMeta1], 'uint32');
 
-    const list = [point1]
+   
     // array dynamic , so add key on 0
     // hoặc nhiều hơn
     const categoryBounds = [0];

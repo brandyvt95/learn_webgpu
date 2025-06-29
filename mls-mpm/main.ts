@@ -53,7 +53,7 @@ function sleep(ms: number): Promise<void> {
 }
   
 async function loadTextures({ device, desc }: { device: GPUDevice, desc?: any[] }) {
-  const imgSrcs = ['/pighead.png']; // 👈 cần là mảng nếu dùng .map
+  const imgSrcs = ['/sdf.png']; // 👈 cần là mảng nếu dùng .map
   const imageBitmaps = await Promise.all(
     imgSrcs.map(async (src) => {
       const response = await fetch(src);

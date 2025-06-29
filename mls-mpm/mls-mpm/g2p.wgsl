@@ -226,7 +226,8 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
         let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin);
     
-        particles[id.x].v += sdfForce * dt * 2.+ vec3f(0.,0.,0.);     
+        particles[id.x].v += sdfForce * dt * 2.+ vec3f(0.,0.,0.);   
+        //particles[id.x].v.y -= 0.07;
         let boxParams = vec3<f32>(real_box_size.x * .2);
         //  let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;
         //  let distanceSphere = sdSphereShrinkSurface(dist , .2,timeCount);

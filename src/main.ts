@@ -19,6 +19,7 @@ import { createEnvironmentSampler, createLightBuffer } from './utils.js';
 import { ManagerBuffer } from './manager_buffer.js';
 import { InitInstancedMesh } from './InstancedMesh_v2/index.js';
 import { Sample } from './SAMPLE/index.js';
+import { PointDetectSurface } from './PointDetectSurface/index.js';
 
 
 export interface Renderables {
@@ -212,7 +213,14 @@ async function main({
     usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
   });
 
-
+  const response = await fetch('/src/assets/img/webgpu.png');
+const imageBitmap = await createImageBitmap(await response.blob());
+const pointDetectSurface = new PointDetectSurface({
+  device:CORE_ENGINE.device,
+  presentationFormat:CORE_ENGINE.format.presentationFormat,
+  imageBitmap,
+  canvas:CORE_ENGINE.canvas
+});
 
 
   //let result2 = CORE_ASSETS.models.leaf_model
@@ -241,7 +249,7 @@ async function main({
   //   presentationFormat: CORE_ENGINE.format.presentationFormat,
   //   frameBindGroupLayout:frameBindGroupLayout
   // })
-  const LIST_PIPLINE = [ground/* , enviromentCube */, instanced,/* mutilDrawSample */]
+  const LIST_PIPLINE = [pointDetectSurface,ground/* , enviromentCube */, instanced/* mutilDrawSample */]
   const {
     depthTexture,
     depthTextureMSAA,
@@ -325,7 +333,7 @@ async function main({
           timeValue: timeValue
         })
       }
-
+    
       // if (skinMesh2) {
       //   const renderables = {
       //     meshes: [],
