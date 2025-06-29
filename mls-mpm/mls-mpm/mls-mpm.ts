@@ -74,13 +74,13 @@ export class MLSMPMSimulator {
         const g2pModule = device.createShaderModule({ code: g2p });
         const copyPositionModule = device.createShaderModule({ code: copyPosition });
 
-        this.restDensity = .3
+        this.restDensity = 1.
 
         const constants = {
-            stiffness: 1., 
+            stiffness: .2, 
             restDensity: this.restDensity, 
             dynamic_viscosity: 0.1, 
-            dt: 0.16, 
+            dt: 0.20, 
             fixed_point_multiplier: 1e7, 
         }
 

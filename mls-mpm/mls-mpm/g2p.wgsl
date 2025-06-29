@@ -145,15 +145,15 @@ fn getSDFForce(
     let falloff = smoothstep(-0.5, 0.0, distance); // từ sâu trong đến sát bề mặt
 
 
-    if (sdf.a < 0.1) {
+    if (sdf.a < 0.05) {
  
-        if(sdf.a < 0.1 && sdf.a > 0.05){
-            return -vec3f(gradient) *  1.5;
+        if(sdf.a < 0.05 && sdf.a > 0.01){
+            return -vec3f(gradient) *  1.72; // force nay chua thich hop
         }else{
             return vec3f(0.);
         }
     }else{
-        return vec3f(0.);
+        return vec3f(forceCen) * 2.;
     }
  
 }
@@ -199,7 +199,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
                     B += term ;
 
-                    particles[id.x].v += weighted_velocity * 1.;
+                    particles[id.x].v += weighted_velocity * .995;
                 }
             }
         }
@@ -221,10 +221,10 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
         let r = .2; 
 
         if (dot(dist, dist) < r * r) {
-            particles[id.x].v -= -(r - sqrt(dot(dist, dist))) * dirToOrigin * 3.0;
+           // particles[id.x].v -= -(r - sqrt(dot(dist, dist))) * dirToOrigin * 3.0;
         }
       
-            particles[id.x].v -= dirToOrigin  * 0.01;
+          //  particles[id.x].v -= dirToOrigin *dt  * 0.04;
    
         let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin);
     
@@ -232,7 +232,8 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
       
 
-        //particles[id.x].v.y -= 0.001;
+        //particles[id.x].v.y -= 0.2;
+
         let boxParams = vec3<f32>(real_box_size.x * .2);
         //  let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;
         //  let distanceSphere = sdSphereShrinkSurface(dist , .2,timeCount);
