@@ -53,7 +53,7 @@ function sleep(ms: number): Promise<void> {
 }
   
 async function loadTextures({ device, desc }: { device: GPUDevice, desc?: any[] }) {
-  const imgSrcs = ['/sdf.png']; // 👈 cần là mảng nếu dùng .map
+  const imgSrcs = ['/run64.png']; // 👈 cần là mảng nếu dùng .map
   const imageBitmaps = await Promise.all(
     imgSrcs.map(async (src) => {
       const response = await fetch(src);
@@ -178,8 +178,8 @@ const sdfTexture = createTextureFromBitmap(device, imageBitmaps[0]);
 	console.log("buffer allocating done")
 
 
-	let mlsmpmNumParticleParams = [10000, 60000, 100000]
-	let mlsmpmInitBoxSizes = [[64, 64, 64], [60, 60, 60], [72, 72, 72]]
+	let mlsmpmNumParticleParams = [4200, 60000, 100000]
+	let mlsmpmInitBoxSizes = [[86, 86, 86], [60, 60, 60], [72, 72, 72]]
 	let mlsmpmInitDistances = [64, 64, 64]
 	let radiuses = [10, 20, 25]
 	let mouseRadiuses = [10, 6, 8]

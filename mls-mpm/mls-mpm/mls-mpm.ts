@@ -80,7 +80,7 @@ export class MLSMPMSimulator {
             stiffness: 1., 
             restDensity: this.restDensity, 
             dynamic_viscosity: 0.1, 
-            dt: 0.20, 
+            dt: 0.16, 
             fixed_point_multiplier: 1e7, 
         }
 

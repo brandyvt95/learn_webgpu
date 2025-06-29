@@ -99,11 +99,11 @@ fn sampleSDF(
     let normalizedPos = pos / real_box_size;
     
     // Bước 2: Chuyển đổi sang không gian voxel grid (SDF có resolution 128x128x128)
-    let sdfResolution = vec3<f32>(128.0, 128.0, 128.0);
+    let sdfResolution = vec3<f32>(64.0, 64.0, 64.0);
     let voxelPos = normalizedPos * (sdfResolution - 1.0);
     
     // Bước 3: Tính toán slice index và vị trí trong slice
-    let z = i32(clamp(voxelPos.z, 0.0, 127.0));
+    let z = i32(clamp(voxelPos.z, 0.0, 63.0));
     let sliceY = z / numSlicesXY.x;  // slice row
     let sliceX = z % numSlicesXY.x;  // slice column
     
@@ -111,8 +111,8 @@ fn sampleSDF(
     let sliceOffsetX = sliceX * sliceSize.x;
     let sliceOffsetY = sliceY * sliceSize.y;
     
-    let pixelX = sliceOffsetX + i32(clamp(voxelPos.x, 0.0, 127.0));
-    let pixelY = sliceOffsetY + i32(clamp(voxelPos.y, 0.0, 127.0));
+    let pixelX = sliceOffsetX + i32(clamp(voxelPos.x, 0.0, 63.0));
+    let pixelY = sliceOffsetY + i32(clamp(voxelPos.y, 0.0, 63.0));
     
     // Bước 5: Lấy mẫu từ texture bằng textureLoad
     return textureLoad(sdfTex, vec2<i32>(pixelX, pixelY), 0);
@@ -129,30 +129,33 @@ fn getSDFForce(
         sdfTex, 
         position, 
         real_box_size,
-        vec2<i32>(128, 128),
-        vec2<i32>(16, 8)
+        vec2<i32>(64, 64),
+        vec2<i32>(16, 4)
     );
     
     let gradient = normalize(sdf.rgb * 2. - 1.);    // Gradient vector
     let distance = sdf.a * 2. - 1.;      // SDF distance
     let forceStrength = .2;
 
-  let stepCheck = -0.8;
-let innerThreshold =  stepCheck + 0.1;  // Giảm xuống 0.05
-let outerThreshold = stepCheck;
+        let stepCheck = -0.8;
+        let innerThreshold =  stepCheck + 0.1;  // Giảm xuống 0.05
+        let outerThreshold = stepCheck;
+    let forceCen = -dirCenter * 0.1;
 
-if (distance < 0.0) {
-    // Bên trong - đẩy mạnh ra ngoài  
-    return gradient * .2 * abs(distance) * 5.;
-} else if (distance < innerThreshold) {
-    return gradient * 1. * (innerThreshold - distance);  
-} else if (distance > outerThreshold) {
-    return -gradient * forceStrength * (distance - outerThreshold);
-} else {
-    return vec3f(0.);
-}
-  
-    
+    let falloff = smoothstep(-0.5, 0.0, distance); // từ sâu trong đến sát bề mặt
+
+
+    if (sdf.a < 0.1) {
+ 
+        if(sdf.a < 0.1 && sdf.a > 0.05){
+            return -vec3f(gradient) *  1.5;
+        }else{
+            return vec3f(0.);
+        }
+    }else{
+        return vec3f(0.);
+    }
+ 
 }
 
 @compute @workgroup_size(64)
@@ -215,19 +218,21 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
         let dirToOrigin = normalize(dist);
         var rForce = vec3f(0);
 
-        let r = .5; 
+        let r = .2; 
 
         if (dot(dist, dist) < r * r) {
-            // particles[id.x].v += -(r - sqrt(dot(dist, dist))) * dirToOrigin * 3.0;
+            particles[id.x].v -= -(r - sqrt(dot(dist, dist))) * dirToOrigin * 3.0;
         }
-
-        // particles[id.x].v += dirToOrigin * 0.1;
+      
+            particles[id.x].v -= dirToOrigin  * 0.01;
    
-
         let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin);
     
-        particles[id.x].v += sdfForce * dt * 2.+ vec3f(0.,0.,0.);   
-        //particles[id.x].v.y -= 0.07;
+       particles[id.x].v += sdfForce  * .2;   
+
+      
+
+        //particles[id.x].v.y -= 0.001;
         let boxParams = vec3<f32>(real_box_size.x * .2);
         //  let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;
         //  let distanceSphere = sdSphereShrinkSurface(dist , .2,timeCount);
