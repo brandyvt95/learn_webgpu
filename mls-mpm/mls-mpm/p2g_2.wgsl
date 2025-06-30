@@ -62,8 +62,8 @@ fn p2g_2(@builtin(global_invocation_id) id: vec3<u32>) {
 
         let volume: f32 = 1.0 / density; // particle.mass = 1.0;
         densities[id.x] = density;
-
-        let pressure: f32 = max(-0.0, stiffness * (pow(density / rest_density, 5.) - 1));
+     
+        let pressure: f32 = max(-0.0, stiffness * (pow(density / rest_density, 8.) - 1));
 
         var stress: mat3x3f = mat3x3f(-pressure, 0, 0, 0, -pressure, 0, 0, 0, -pressure);
         let dudv: mat3x3f = particle.C;

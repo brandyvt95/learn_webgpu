@@ -74,10 +74,10 @@ export class MLSMPMSimulator {
         const g2pModule = device.createShaderModule({ code: g2p });
         const copyPositionModule = device.createShaderModule({ code: copyPosition });
 
-        this.restDensity = 1.
+        this.restDensity = .7
 
         const constants = {
-            stiffness: .6, 
+            stiffness: .01, 
             restDensity: this.restDensity, 
             dynamic_viscosity: 0.1, 
             dt: 0.20, 
@@ -386,7 +386,7 @@ export class MLSMPMSimulator {
         // console.log("current particles: ", this.numParticles)
        
         this.frameCount++;
-        this.timeCount += 0.7
+        this.timeCount += 0.5
      
         this.device.queue.writeBuffer(this.sphereRadiusBuffer, 0,new Float32Array([this.timeCount]) )
     }

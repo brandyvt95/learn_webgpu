@@ -183,7 +183,7 @@ const sdfTexture = createTextureFromBitmap(device, imageBitmaps[0]);
 	console.log("buffer allocating done")
 
 
-	let mlsmpmNumParticleParams = [3000, 60000, 100000]
+	let mlsmpmNumParticleParams = [5000, 60000, 100000]
 	let mlsmpmInitBoxSizes = [[64, 64, 64], [60, 60, 60], [72, 72, 72]]
 	let mlsmpmInitDistances = [64, 64, 64]
 	let radiuses = [10, 20, 25]

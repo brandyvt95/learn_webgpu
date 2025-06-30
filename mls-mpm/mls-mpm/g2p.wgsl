@@ -163,15 +163,18 @@ fn getSDFForce(
     let falloff = smoothstep(-0.5, 0.0, distance); // từ sâu trong đến sát bề mặt
 
     let rangeHold = .2;
+    let offClamp = 1.;
     if (sdf.a < rangeHold) {
- 
+        
         if(sdf.a < rangeHold && sdf.a > 0.05){
-            return -vec3f(gradient); // force nay chua thich hop
+            let clampVelGrad  = clamp(1.,.95,sdf.a) * offClamp + (1.-offClamp);
+
+            return -vec3f(gradient) * clampVelGrad; // force nay chua thich hop
         }else{
             return vec3f(0.);
         }
     }else{
-        return vec3f(forceCen) * 2.;
+        return vec3f(forceCen) * 2. + vec3f(0. ,-.1,0.) * 0.;
     }
  
 }
@@ -217,7 +220,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
                     B += term ;
 
-                    particles[id.x].v += weighted_velocity * .9;
+                    particles[id.x].v += weighted_velocity * .96;
                 }
             }
         }
@@ -246,7 +249,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
    
         let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin,timeCount);
     
-       particles[id.x].v += sdfForce  * .7;   
+       particles[id.x].v += sdfForce  * .8;   
       
 
        // particles[id.x].v.y -= 0.1;
@@ -275,7 +278,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
 
       
-        let k = 3.;
+        let k = 1.;
         let wall_stiffness = 1.0;
         let x_n: vec3f = particles[id.x].position + particles[id.x].v * dt * k;
         let wall_min: vec3f = vec3f(3.);
