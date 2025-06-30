@@ -166,10 +166,10 @@ fn getSDFForce(
     let offClamp = 1.;
     if (sdf.a < rangeHold) {
         
-        if(sdf.a < rangeHold && sdf.a > 0.05){
-            let clampVelGrad  = clamp(1.,.95,sdf.a) * offClamp + (1.-offClamp);
-
-            return -vec3f(gradient) * clampVelGrad; // force nay chua thich hop
+        if(sdf.a < rangeHold && sdf.a > 0.04){
+            let td = (sdf.a - 0.04) / (rangeHold - 0.04); // map sdf.a từ [0.04, rangeHold] -> [0.0, 1.0]
+            let clampVelGrad = clamp(td, 0.0, .7);
+            return -vec3f(gradient) * clampVelGrad ; 
         }else{
             return vec3f(0.);
         }
@@ -220,7 +220,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
                     B += term ;
 
-                    particles[id.x].v += weighted_velocity * .96;
+                    particles[id.x].v += weighted_velocity * .95;
                 }
             }
         }
@@ -249,7 +249,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
    
         let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin,timeCount);
     
-       particles[id.x].v += sdfForce  * .8;   
+       particles[id.x].v += sdfForce  * 1.;   
       
 
        // particles[id.x].v.y -= 0.1;
