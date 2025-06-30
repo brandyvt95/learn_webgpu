@@ -92,13 +92,20 @@ fn sampleSDF(
     sdfTex: texture_2d<f32>,
     pos: vec3<f32>,
     real_box_size: vec3<f32>, // [64, 64, 64]
-    sliceSize: vec2<i32>,     // [128, 128] 
-    numSlicesXY: vec2<i32>    // [16, 8]
+    sliceSize: vec2<i32>,     // [64, 64] 
+    numSlicesXY: vec2<i32>,   // [16, 4]
+    timeCount: f32
 ) -> vec4<f32> {
+    // THÊM: Tính frame indices và interpolation factor
+    let frameFloat = timeCount % 62.0;
+    let frame1 = i32(floor(frameFloat));
+    let frame2 = (frame1 + 1) % 62;
+    let t = fract(frameFloat); // interpolation factor (0.0 - 1.0)
+    
     // Bước 1: Chuyển đổi vị trí từ không gian thực sang không gian normalized [0,1]
     let normalizedPos = pos / real_box_size;
     
-    // Bước 2: Chuyển đổi sang không gian voxel grid (SDF có resolution 128x128x128)
+    // Bước 2: Chuyển đổi sang không gian voxel grid (SDF có resolution 64x64x64)
     let sdfResolution = vec3<f32>(64.0, 64.0, 64.0);
     let voxelPos = normalizedPos * (sdfResolution - 1.0);
     
@@ -107,21 +114,31 @@ fn sampleSDF(
     let sliceY = z / numSlicesXY.x;  // slice row
     let sliceX = z % numSlicesXY.x;  // slice column
     
-    // Bước 4: Tính toán tọa độ pixel cuối cùng
+    // Bước 4: Tính toán tọa độ pixel cuối cùng cho cả 2 frames
     let sliceOffsetX = sliceX * sliceSize.x;
     let sliceOffsetY = sliceY * sliceSize.y;
     
     let pixelX = sliceOffsetX + i32(clamp(voxelPos.x, 0.0, 63.0));
-    let pixelY = sliceOffsetY + i32(clamp(voxelPos.y, 0.0, 63.0));
     
-    // Bước 5: Lấy mẫu từ texture bằng textureLoad
-    return textureLoad(sdfTex, vec2<i32>(pixelX, pixelY), 0);
+    // Sample từ frame 1
+    let frame1OffsetY = frame1 * 256;
+    let pixelY1 = frame1OffsetY + sliceOffsetY + i32(clamp(voxelPos.y, 0.0, 63.0));
+    let sample1 = textureLoad(sdfTex, vec2<i32>(pixelX, pixelY1), 0);
+    
+    // Sample từ frame 2
+    let frame2OffsetY = frame2 * 256;
+    let pixelY2 = frame2OffsetY + sliceOffsetY + i32(clamp(voxelPos.y, 0.0, 63.0));
+    let sample2 = textureLoad(sdfTex, vec2<i32>(pixelX, pixelY2), 0);
+    
+    // Bước 5: Interpolate giữa 2 frames
+    return mix(sample1, sample2, t);
 }
 fn getSDFForce(
     position: vec3<f32>,
     sdfTex: texture_2d<f32>,
     real_box_size: vec3<f32>,
       dirCenter : vec3<f32>,
+      timeCount: f32
 ) -> vec3<f32> {
     
     // Sample SDF
@@ -130,7 +147,8 @@ fn getSDFForce(
         position, 
         real_box_size,
         vec2<i32>(64, 64),
-        vec2<i32>(16, 4)
+        vec2<i32>(16, 4),
+        timeCount
     );
     
     let gradient = normalize(sdf.rgb * 2. - 1.);    // Gradient vector
@@ -144,11 +162,11 @@ fn getSDFForce(
 
     let falloff = smoothstep(-0.5, 0.0, distance); // từ sâu trong đến sát bề mặt
 
-
-    if (sdf.a < 0.05) {
+    let rangeHold = .2;
+    if (sdf.a < rangeHold) {
  
-        if(sdf.a < 0.05 && sdf.a > 0.01){
-            return -vec3f(gradient) *  1.72; // force nay chua thich hop
+        if(sdf.a < rangeHold && sdf.a > 0.05){
+            return -vec3f(gradient); // force nay chua thich hop
         }else{
             return vec3f(0.);
         }
@@ -199,7 +217,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
                     B += term ;
 
-                    particles[id.x].v += weighted_velocity * .995;
+                    particles[id.x].v += weighted_velocity * .9;
                 }
             }
         }
@@ -226,13 +244,12 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
       
           //  particles[id.x].v -= dirToOrigin *dt  * 0.04;
    
-        let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin);
+        let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin,timeCount);
     
-       particles[id.x].v += sdfForce  * .2;   
-
+       particles[id.x].v += sdfForce  * .7;   
       
 
-        //particles[id.x].v.y -= 0.2;
+       // particles[id.x].v.y -= 0.1;
 
         let boxParams = vec3<f32>(real_box_size.x * .2);
         //  let torusParams = vec2<f32>(2.0, 0.5)  * real_box_size.x * 0.5;

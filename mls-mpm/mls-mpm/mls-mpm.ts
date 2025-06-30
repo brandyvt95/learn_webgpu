@@ -77,7 +77,7 @@ export class MLSMPMSimulator {
         this.restDensity = 1.
 
         const constants = {
-            stiffness: .2, 
+            stiffness: .6, 
             restDensity: this.restDensity, 
             dynamic_viscosity: 0.1, 
             dt: 0.20, 
@@ -386,7 +386,7 @@ export class MLSMPMSimulator {
         // console.log("current particles: ", this.numParticles)
        
         this.frameCount++;
-        this.timeCount += 0.05
+        this.timeCount += 0.7
      
         this.device.queue.writeBuffer(this.sphereRadiusBuffer, 0,new Float32Array([this.timeCount]) )
     }

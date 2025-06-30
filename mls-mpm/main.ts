@@ -24,7 +24,11 @@ async function init() {
 		throw new Error()
 	}
 
-	const device = await adapter.requestDevice()
+	const device = await adapter.requestDevice({
+		 requiredLimits: {
+    maxTextureDimension2D: 16384, // Yêu cầu quyền dùng giới hạn cao hơn
+  },
+	})
 
 	const context = canvas.getContext('webgpu') as GPUCanvasContext
 
@@ -53,7 +57,7 @@ function sleep(ms: number): Promise<void> {
 }
   
 async function loadTextures({ device, desc }: { device: GPUDevice, desc?: any[] }) {
-  const imgSrcs = ['/run64.png']; // 👈 cần là mảng nếu dùng .map
+  const imgSrcs = ['/fast_run_sdf_o.png']; // 👈 cần là mảng nếu dùng .map
   const imageBitmaps = await Promise.all(
     imgSrcs.map(async (src) => {
       const response = await fetch(src);
@@ -86,6 +90,7 @@ function createTextureFromBitmap(device: GPUDevice, bitmap: ImageBitmap) {
 async function main() {
 	const { canvas, device, presentationFormat, context } = await init();
 	const imageBitmaps = await loadTextures({ device });
+	
 const sdfTexture = createTextureFromBitmap(device, imageBitmaps[0]);
 
 
