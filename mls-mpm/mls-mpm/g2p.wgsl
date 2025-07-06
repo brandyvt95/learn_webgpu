@@ -102,9 +102,11 @@ fn sampleSDF(
     let frame2 = (frame1 + 1) % 62;
     let t = fract(frameFloat); // interpolation factor (0.0 - 1.0)
     
-    // Bước 1: Chuyển đổi vị trí từ không gian thực sang không gian normalized [0,1]
-    let normalizedPos = pos / real_box_size;
-    
+       // Ví dụ offset theo trục Y
+let offset = vec3<f32>(0.0, 8., 0.0); // dịch xuống 50% chiều cao
+
+let normalizedPos = (pos + offset) / real_box_size;
+
     // Bước 2: Chuyển đổi sang không gian voxel grid (SDF có resolution 64x64x64)
     let sdfResolution = vec3<f32>(64.0, 64.0, 64.0);
     let voxelPos = normalizedPos * (sdfResolution - 1.0);
@@ -162,19 +164,30 @@ fn getSDFForce(
 
     let falloff = smoothstep(-0.5, 0.0, distance); // từ sâu trong đến sát bề mặt
 
-    let rangeHold = .2;
+    let rangeHold = .1;
     let offClamp = 1.;
     if (sdf.a < rangeHold) {
         
-        if(sdf.a < rangeHold && sdf.a > 0.04){
+        if(sdf.a < rangeHold && sdf.a > 0.05){
             let td = (sdf.a - 0.04) / (rangeHold - 0.04); // map sdf.a từ [0.04, rangeHold] -> [0.0, 1.0]
-            let clampVelGrad = clamp(td, 0.0, .7);
-            return -vec3f(gradient) * clampVelGrad ; 
+            let clampVelGrad = clamp(td, 0.1, .2);
+            return -vec3f(gradient) * clampVelGrad * 4.; 
         }else{
-            return vec3f(0.);
+            //  if(position.y > 50.) {
+            //      return vec3f(0. ,-.5,0.);
+            //  }else{
+                
+            //  }
+            return vec3f(0. ,0.,0.);
         }
     }else{
-        return vec3f(forceCen) * 2. + vec3f(0. ,-.1,0.) * 0.;
+        if(position.y < 3.4) {
+            
+             return vec3f(forceCen) * 1. + vec3f(0.) * 0.;
+        }else{
+             return vec3f(forceCen) * 0. + vec3f(0. ,-.1,0.) * 2.;
+        }
+     
     }
  
 }
@@ -220,7 +233,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
                     B += term ;
 
-                    particles[id.x].v += weighted_velocity * .95;
+                    particles[id.x].v += weighted_velocity * 1.;
                 }
             }
         }
@@ -249,9 +262,8 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
    
         let sdfForce = getSDFForce(particle.position, sdfTex, real_box_size,dirToOrigin,timeCount);
     
-       particles[id.x].v += sdfForce  * 1.;   
+        particles[id.x].v += sdfForce  * 1.;
       
-
        // particles[id.x].v.y -= 0.1;
 
         let boxParams = vec3<f32>(real_box_size.x * .2);
@@ -278,7 +290,7 @@ fn g2p(@builtin(global_invocation_id) id: vec3<u32>) {
 
 
       
-        let k = 1.;
+        let k = 3.;
         let wall_stiffness = 1.0;
         let x_n: vec3f = particles[id.x].position + particles[id.x].v * dt * k;
         let wall_min: vec3f = vec3f(3.);

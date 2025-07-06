@@ -77,9 +77,9 @@ export class MLSMPMSimulator {
         this.restDensity = 1.
 
         const constants = {
-            stiffness: .01, 
+            stiffness: .02, 
             restDensity: this.restDensity, 
-            dynamic_viscosity: 0.1, 
+            dynamic_viscosity: 0.2, 
             dt: 0.20, 
             fixed_point_multiplier: 1e7, 
         }
