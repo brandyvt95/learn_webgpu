@@ -3,7 +3,8 @@ PROBLEM:
 
 SULUTION:
 1. FK ON GPU , CONSTRUCTOR LSYSTEM , 1 SEGMENT/ CLUSTER SEGMENT ON 1 DEPTH -> NO DEPEN -> PASS COUNT = DEPTH
-2. 
+2. mls-mpm masukai , soth external force apply fine , but need sample direct aka mipmip fill
+3. 
 RES:
 https://brandyvt95.github.io/learn_webgpu/dist/
 https://toji.dev/webgpu-best-practices/
